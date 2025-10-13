@@ -1,0 +1,92 @@
+{
+  "model": "Professional",
+  "title": "Profesionales de la Salud",
+  "description": "Gestión de profesionales",
+  "columns": [
+    { "key": "id", "title": "ID", "type": "text", "sortable": true, "hideable": true, "hidden": true },
+
+    {
+      "key": "fullName",
+      "title": "Nombre completo",
+      "type": "text",
+      "sortable": true,
+      "filterable": true,
+      "frozen": true,
+      "width": 260,
+      "validation": {
+        "required": true,
+        "minLength": 2,
+        "maxLength": 80
+      }
+    },
+
+    {
+      "key": "email",
+      "title": "Email",
+      "type": "email",
+      "sortable": true,
+      "filterable": true,
+      "width": 220,
+      "validation": {
+        "required": true,
+        "maxLength": 100
+      }
+    },
+
+    {
+      "key": "phone",
+      "title": "Teléfono",
+      "type": "text",
+      "sortable": true,
+      "filterable": true,
+      "width": 140,
+      "hideable": true,
+      "validation": {
+        "required": true,
+        "pattern": "^\\d{7,10}$",
+        "patternMessage": "Solo dígitos (7 a 10)."
+      }
+    },
+
+    {
+      "key": "specialty",
+      "title": "Especialidad",
+      "type": "badge",
+      "options": ["Medicina General","Odontología","Fisioterapia","Psicología","Otro"],
+      "sortable": true,
+      "filterable": true,
+      "width": 180,
+      "hideable": true,
+      "validation": { "required": true }
+    },
+
+    {
+      "key": "active",
+      "title": "Activo",
+      "type": "boolean",
+      "sortable": true,
+      "filterable": true,
+      "width": 90,
+      "validation": { "required": true }
+    },
+
+    { "key": "createdAt", "title": "Creado", "type": "date", "sortable": true, "hideable": true, "width": 180 }
+  ],
+  "rowActions": [
+    { "id": "view", "label": "Ver", "icon": "eye", "variant": "ghost", "action": "view" },
+    { "id": "edit", "label": "Editar", "icon": "pencil", "variant": "ghost", "action": "edit" },
+    { "id": "delete", "label": "Eliminar", "icon": "trash", "variant": "destructive", "action": "delete", "confirmMessage": "¿Eliminar este profesional?" }
+  ],
+  "bulkActions": [
+    { "id": "delete", "label": "Eliminar Seleccionados", "icon": "trash", "variant": "destructive", "action": "delete", "confirmMessage": "¿Eliminar profesionales seleccionados?" },
+    { "id": "export", "label": "Exportar CSV", "icon": "download", "variant": "outline", "action": "export" }
+  ],
+  "enableSelection": true,
+  "enableMultiSelection": true,
+  "enablePagination": true,
+  "pageSize": 20,
+  "enableSearch": true,
+  "searchPlaceholder": "Buscar por nombre, email o especialidad...",
+  "enableFilters": true,
+  "enableExport": true
+}

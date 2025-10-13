@@ -1,0 +1,150 @@
+{
+  "model": "Patient",
+  "title": "Pacientes",
+  "description": "Gestión de pacientes",
+  "columns": [
+    { "key": "id", "title": "ID", "type": "text", "sortable": true, "hideable": true, "hidden": true },
+
+    {
+      "key": "documentType",
+      "title": "Tipo Doc",
+      "type": "select",
+      "options": ["CC","TI","CE","PA","RC","NIP"],
+      "sortable": true,
+      "filterable": true,
+      "width": 110,
+      "frozen": true,
+      "validation": { "required": true }
+    },
+
+    {
+      "key": "documentNumber",
+      "title": "Documento",
+      "type": "text",
+      "unique": true,
+      "sortable": true,
+      "filterable": true,
+      "width": 160,
+      "frozen": true,
+      "validation": {
+        "required": true,
+        "minLength": 6,
+        "maxLength": 12,
+        "pattern": "^\\d{6,12}$",
+        "patternMessage": "Solo dígitos (6 a 12)."
+      }
+    },
+
+    {
+      "key": "firstName",
+      "title": "Nombres",
+      "type": "text",
+      "sortable": true,
+      "filterable": true,
+      "width": 180,
+      "validation": {
+        "required": true,
+        "minLength": 2,
+        "maxLength": 50
+      }
+    },
+
+    {
+      "key": "lastName",
+      "title": "Apellidos",
+      "type": "text",
+      "sortable": true,
+      "filterable": true,
+      "width": 180,
+      "validation": {
+        "required": true,
+        "minLength": 2,
+        "maxLength": 50
+      }
+    },
+
+    {
+      "key": "email",
+      "title": "Email",
+      "type": "email",
+      "sortable": true,
+      "filterable": true,
+      "width": 220,
+      "hideable": true,
+      "validation": {
+        "required": true,
+        "maxLength": 100
+      },
+      "unique": true
+    },
+
+    {
+      "key": "phone",
+      "title": "Teléfono",
+      "type": "text",
+      "sortable": true,
+      "filterable": true,
+      "width": 140,
+      "hideable": true,
+      "validation": {
+        "required": true,
+        "pattern": "^\\d{7,10}$",
+        "patternMessage": "Solo dígitos (7 a 10)."
+      }
+    },
+
+    {
+      "key": "birthDate",
+      "title": "Nacimiento",
+      "type": "date",
+      "sortable": true,
+      "hideable": true,
+      "width": 160,
+      "validation": {
+        "required": true,
+        "maxDate": "today"
+      }
+    },
+
+    {
+      "key": "gender",
+      "title": "Género",
+      "type": "badge",
+      "options": ["M","F","O"],
+      "sortable": true,
+      "filterable": true,
+      "width": 100,
+      "hideable": true,
+      "validation": { "required": true }
+    },
+
+    {
+      "key": "active",
+      "title": "Activo",
+      "type": "boolean",
+      "sortable": true,
+      "filterable": true,
+      "width": 90,
+      "validation": { "required": true }
+    },
+
+    { "key": "createdAt", "title": "Creado", "type": "date", "sortable": true, "hideable": true, "width": 180 }
+  ],
+  "rowActions": [
+    { "id": "view", "label": "Ver", "icon": "eye", "variant": "ghost", "action": "view" },
+    { "id": "edit", "label": "Editar", "icon": "pencil", "variant": "ghost", "action": "edit" },
+    { "id": "delete", "label": "Eliminar", "icon": "trash", "variant": "destructive", "action": "delete", "confirmMessage": "¿Eliminar este paciente?" }
+  ],
+  "bulkActions": [
+    { "id": "delete", "label": "Eliminar Seleccionados", "icon": "trash", "variant": "destructive", "action": "delete", "confirmMessage": "¿Eliminar pacientes seleccionados?" },
+    { "id": "export", "label": "Exportar CSV", "icon": "download", "variant": "outline", "action": "export" }
+  ],
+  "enableSelection": true,
+  "enableMultiSelection": true,
+  "enablePagination": true,
+  "pageSize": 20,
+  "enableSearch": true,
+  "searchPlaceholder": "Buscar por nombre, doc o email...",
+  "enableFilters": true,
+  "enableExport": true
+}

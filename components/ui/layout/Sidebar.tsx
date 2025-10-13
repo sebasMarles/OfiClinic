@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import Link from "next/link"; 
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -35,6 +36,9 @@ const menu: MenuGroup[] = [
       { label: "Profesionales", href: "#" },
       { label: "Planes y tarifas", href: "#" },
       { label: "Servicios", href: "#" },
+      { label: "Pacientes", href: "/crud/Patient" },
+      { label: "Profesionales", href: "/crud/Professional" },
+
     ],
   },
   {
@@ -132,9 +136,9 @@ export default function Sidebar() {
                 </CollapsibleContent>
               </Collapsible>
             ) : (
-              <a
+              <Link
                 key={group.label}
-                href="#"
+                href={group.label === "Inicio" ? "/" : "#"} 
                 className={cn(
                   "rounded-lg px-3 py-2 font-medium transition-all duration-150 ease-in-out",
                   "text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800",
@@ -143,7 +147,7 @@ export default function Sidebar() {
                 )}
               >
                 {group.label}
-              </a>
+              </Link>
             )
           )}
         </nav>

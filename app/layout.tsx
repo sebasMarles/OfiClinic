@@ -1,4 +1,5 @@
 import "./globals.css";
+import '@/lib/zod-locale'
 import type { Metadata } from "next";
 import Providers from "@/components/ui/providers";
 import Navbar from "@/components/ui/layout/Navbar";
