@@ -1,11 +1,12 @@
 // app/api/crud/[model]/route.ts
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import * as services from '@/infrastructure/services'
+import { getUseCasesFor } from '@/lib/di'
 import { getTableConfig } from '@/lib/config-loader'
 import { schemaFromConfig } from '@/domain/validation/schema-from-config'
 import type { TableConfig } from '@/types/table-config'
 
+/** Coerción por tipo desde config JSON */
 function coercePayloadByConfig(payload: any, cfg: TableConfig) {
   const out: any = {}
   for (const col of cfg.columns) {
@@ -16,9 +17,8 @@ function coercePayloadByConfig(payload: any, cfg: TableConfig) {
     switch (col.type) {
       case 'number':
       case 'currency': {
-        if (v === '' || v === null || v === undefined) {
-          out[k] = undefined
-        } else {
+        if (v === '' || v === null || v === undefined) out[k] = undefined
+        else {
           const n = Number(v)
           out[k] = Number.isFinite(n) ? n : undefined
         }
@@ -47,9 +47,7 @@ function coercePayloadByConfig(payload: any, cfg: TableConfig) {
         out[k] = v == null ? '' : String(v)
         break
       }
-      default: {
-        out[k] = v
-      }
+      default: out[k] = v
     }
   }
   return out
@@ -70,7 +68,8 @@ export async function GET(
   const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') ?? 'desc'
 
   try {
-    const result = await services.listRecords(slug, { page, pageSize, search, sortBy, sortOrder })
+    const uc = getUseCasesFor(slug)
+    const result = await uc.list({ page, pageSize, search, sortBy, sortOrder })
     return NextResponse.json(result)
   } catch (e) {
     console.error('API GET list error:', e)
@@ -88,20 +87,18 @@ export async function POST(
   try {
     const body = await request.json()
     const cfg = await getTableConfig(slug)
-    if (!cfg) {
-      return NextResponse.json({ error: `No hay configuración para ${slug}` }, { status: 400 })
-    }
+    if (!cfg) return NextResponse.json({ error: `No hay configuración para ${slug}` }, { status: 400 })
 
-    // 1) Coerce + validar Zod
     const prepped = coercePayloadByConfig(body, cfg)
     const schema = schemaFromConfig(cfg)
     const parsed = schema.parse(prepped)
 
-    // 2) Chequeos de unicidad declarados en JSON
+    // Chequeos de unicidad declarados en JSON antes de persistir
+    const uc = getUseCasesFor(slug)
     for (const col of cfg.columns.filter(c => c.unique)) {
       const val = (parsed as any)[col.key]
       if (val !== undefined && val !== null && String(val) !== '') {
-        const exists = await services.existsByField(slug, col.key, val)
+        const exists = await uc.existsByField(col.key, val)
         if (exists) {
           return NextResponse.json(
             { error: 'Validación fallida', details: [{ field: col.key, message: `${col.title} ya está en uso` }] },
@@ -111,11 +108,9 @@ export async function POST(
       }
     }
 
-    // 3) Crear
-    const created = await services.createRecord(slug, parsed)
+    const created = await uc.create(parsed)
     return NextResponse.json({ data: created }, { status: 201 })
   } catch (err: any) {
-    // Errores Zod
     if (err?.issues) {
       const details = err.issues.map((i: any) => ({
         field: String(i.path?.[0] ?? ''),
@@ -123,8 +118,6 @@ export async function POST(
       }))
       return NextResponse.json({ error: 'Validación fallida', details }, { status: 400 })
     }
-
-    // Posible P2002 (único Prisma)
     if (err?.code === 'P2002') {
       const targets = Array.isArray(err?.meta?.target) ? err.meta.target : [err?.meta?.target].filter(Boolean)
       const details = (targets as string[]).map((t: string) => ({
@@ -133,7 +126,6 @@ export async function POST(
       }))
       return NextResponse.json({ error: 'Validación fallida', details }, { status: 400 })
     }
-
     console.error('API POST error:', err)
     return NextResponse.json({ error: 'Failed to create record' }, { status: 500 })
   }

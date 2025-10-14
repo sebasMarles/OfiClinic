@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getTableConfig } from '@/lib/config-loader'
-import * as services from '@/infrastructure/services'
+import { getUseCasesFor } from '@/lib/di'
 
 export async function GET(
   request: NextRequest,
@@ -29,7 +29,8 @@ export async function GET(
   }
 
   try {
-    const exists = await services.existsByField(slug, field, value, excludeId)
+    const uc = getUseCasesFor(slug)
+    const exists = await uc.existsByField(field, value, excludeId)
     return NextResponse.json({ exists })
   } catch (e) {
     console.error('check-unique error:', e)

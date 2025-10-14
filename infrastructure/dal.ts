@@ -34,18 +34,23 @@ export function isValidModel(model: string): model is ModelName {
  * Nota: devolvemos `string` para evitar choques con el tipado de Prisma,
  * ya que luego accedemos como `(prisma as any)[key]`.
  */
-export function keyFor(model: string): string {
+export function keyFor(model: string): keyof typeof prisma {
   const m = (model || '').toLowerCase()
 
+  // Aliases/plurales comunes
   if (m === 'patients') return 'patient'
   if (m === 'professionals') return 'professional'
   if (m === 'clinicalhistory' || m === 'clinicalhistories') return 'clinicalHistory'
   if (m === 'appointments') return 'appointment'
   if (m === 'collections') return 'collection'
-  if (m === 'collectionfield' || m === 'collectionfields' || m === 'fields') return 'collectionField'
 
-  // por defecto, intenta el mismo nombre (patient, professional, collection, collectionField, appointment)
-  return m
+  // ⚠️ Importante: no mapeamos a 'collectionField' porque ese delegate no existe
+  // en tu Prisma actual. Si en el futuro agregas el modelo `CollectionField`,
+  // tras migrar podrás añadir:
+  // if (m === 'collectionfield' || m === 'collectionfields' || m === 'fields') return 'collectionField'
+
+  // Fallback: intentamos el mismo nombre (ej. 'patient', 'professional', 'collection', 'appointment')
+  return m as keyof typeof prisma
 }
 
 /** Helper para obtener delegate con guardas */

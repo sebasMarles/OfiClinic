@@ -1,7 +1,7 @@
 // app/api/crud/[model]/[id]/route.ts
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import * as services from '@/infrastructure/services'
+import { getUseCasesFor } from '@/lib/di'
 import { getTableConfig } from '@/lib/config-loader'
 import { schemaFromConfig } from '@/domain/validation/schema-from-config'
 import type { TableConfig } from '@/types/table-config'
@@ -16,9 +16,8 @@ function coercePayloadByConfig(payload: any, cfg: TableConfig) {
     switch (col.type) {
       case 'number':
       case 'currency': {
-        if (v === '' || v === null || v === undefined) {
-          out[k] = undefined
-        } else {
+        if (v === '' || v === null || v === undefined) out[k] = undefined
+        else {
           const n = Number(v)
           out[k] = Number.isFinite(n) ? n : undefined
         }
@@ -47,9 +46,7 @@ function coercePayloadByConfig(payload: any, cfg: TableConfig) {
         out[k] = v == null ? '' : String(v)
         break
       }
-      default: {
-        out[k] = v
-      }
+      default: out[k] = v
     }
   }
   return out
@@ -61,7 +58,8 @@ export async function GET(
 ) {
   const { model, id } = await context.params
   try {
-    const record = await services.getRecord(model.toLowerCase(), id)
+    const uc = getUseCasesFor((model || '').toLowerCase())
+    const record = await uc.get(id)
     return NextResponse.json({ data: record })
   } catch (e) {
     console.error(e)
@@ -81,16 +79,16 @@ export async function PUT(
     const cfg = await getTableConfig(slug)
     if (!cfg) return NextResponse.json({ error: `No hay configuración para ${slug}` }, { status: 400 })
 
-    // 1) Coerce + validar Zod
     const prepped = coercePayloadByConfig(body, cfg)
     const schema = schemaFromConfig(cfg)
     const parsed = schema.parse(prepped)
 
-    // 2) Chequeos de unicidad (excluyendo el propio id)
+    // Chequeos de unicidad (excluyendo el propio id)
+    const uc = getUseCasesFor(slug)
     for (const col of cfg.columns.filter(c => c.unique)) {
       const val = (parsed as any)[col.key]
       if (val !== undefined && val !== null && String(val) !== '') {
-        const exists = await services.existsByField(slug, col.key, val, id)
+        const exists = await uc.existsByField(col.key, val, id)
         if (exists) {
           return NextResponse.json(
             { error: 'Validación fallida', details: [{ field: col.key, message: `${col.title} ya está en uso` }] },
@@ -100,11 +98,9 @@ export async function PUT(
       }
     }
 
-    // 3) Actualizar
-    const updated = await services.updateRecord(slug, id, parsed)
+    const updated = await uc.update(id, parsed)
     return NextResponse.json({ data: updated })
   } catch (err: any) {
-    // Errores Zod
     if (err?.issues) {
       const details = err.issues.map((i: any) => ({
         field: String(i.path?.[0] ?? ''),
@@ -112,8 +108,6 @@ export async function PUT(
       }))
       return NextResponse.json({ error: 'Validación fallida', details }, { status: 400 })
     }
-
-    // Posible P2002
     if (err?.code === 'P2002') {
       const targets = Array.isArray(err?.meta?.target) ? err.meta.target : [err?.meta?.target].filter(Boolean)
       const details = (targets as string[]).map((t: string) => ({
@@ -122,7 +116,6 @@ export async function PUT(
       }))
       return NextResponse.json({ error: 'Validación fallida', details }, { status: 400 })
     }
-
     console.error('API PUT error:', err)
     return NextResponse.json({ error: 'Failed to update record' }, { status: 500 })
   }
@@ -134,7 +127,8 @@ export async function DELETE(
 ) {
   const { model, id } = await context.params
   try {
-    await services.deleteRecord(model.toLowerCase(), id)
+    const uc = getUseCasesFor((model || '').toLowerCase())
+    await uc.remove(id)
     return NextResponse.json({ data: { id, deleted: true } })
   } catch (e) {
     console.error(e)
