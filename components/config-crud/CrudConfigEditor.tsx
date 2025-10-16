@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import type { ColumnConfig } from '@/types/table-config'
+import type { ColumnConfig, RowAction, BulkAction } from '@/types/table-config'
 import type { ConfigCrudEntry } from '@/types/config-crud'
 import { toast } from 'sonner'
 
@@ -40,36 +40,15 @@ export default function CrudConfigEditor({ model }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      if (!res.ok) {
-        const msg = await res.text().catch(()=>'')
-        throw new Error(msg || 'save_failed')
-      }
+      if (!res.ok) throw new Error('save_failed')
       return res.json()
     },
     onSuccess: () => {
-      toast.success('JSON guardado en config/models.')
+      toast.success('Configuración guardada')
       qc.invalidateQueries({ queryKey: ['config-crud', 'tables'] })
       qc.invalidateQueries({ queryKey: ['config-crud', 'detail', model] })
     },
-    onError: (e:any) => toast.error(e?.message || 'No se pudo guardar'),
-  })
-
-  const syncMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`/api/config-crud/${model}/sync`, { method: 'POST' })
-      if (!res.ok) {
-        const data = await res.json().catch(()=>({}))
-        throw new Error(data?.error || 'sync_failed')
-      }
-      return res.json()
-    },
-    onSuccess: (out:any) => {
-      toast.success('Schema actualizado. Luego ejecuta:\n$ npx prisma migrate dev')
-      if (out?.warnings?.length) {
-        out.warnings.forEach((w:string)=>toast.warning(w))
-      }
-    },
-    onError: (e:any) => toast.error(e?.message || 'No se pudo sincronizar con Prisma'),
+    onError: () => toast.error('No se pudo guardar'),
   })
 
   const addColumn = () => {
@@ -98,15 +77,36 @@ export default function CrudConfigEditor({ model }: Props) {
     setDraft({ ...draft, columns: cols })
   }
 
+  const addRowAction = () => {
+    if (!draft) return
+    const next: RowAction = { id: `act${Date.now()}`, label: 'Editar', action: 'edit', variant: 'ghost', icon: 'pencil' }
+    setDraft({ ...draft, rowActions: [...(draft.rowActions || []), next] })
+  }
+
+  const removeRowAction = (i: number) => {
+    if (!draft) return
+    const arr = [...(draft.rowActions || [])]
+    arr.splice(i, 1)
+    setDraft({ ...draft, rowActions: arr })
+  }
+
+  const addBulkAction = () => {
+    if (!draft) return
+    const next: BulkAction = { id: `bulk${Date.now()}`, label: 'Exportar CSV', action: 'export', variant: 'outline', icon: 'download' }
+    setDraft({ ...draft, bulkActions: [...(draft.bulkActions || []), next] })
+  }
+
+  const removeBulkAction = (i: number) => {
+    if (!draft) return
+    const arr = [...(draft.bulkActions || [])]
+    arr.splice(i, 1)
+    setDraft({ ...draft, bulkActions: arr })
+  }
+
   const disableSave = useMemo(() => {
     if (!draft) return true
     if (!draft.model?.trim()) return true
     if (!draft.title?.trim()) return true
-    // claves válidas
-    const keys = (draft.columns || []).map(c => c.key?.trim()).filter(Boolean)
-    if (keys.length !== (draft.columns || []).length) return true
-    const dup = keys.find((k, i) => keys.indexOf(k) !== i)
-    if (dup) return true
     return false
   }, [draft])
 
@@ -117,13 +117,14 @@ export default function CrudConfigEditor({ model }: Props) {
     <div className="space-y-8">
       {/* Meta */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Modelo (solo lectura) */}
         <div>
           <Label className="mb-1.5 block">Modelo</Label>
-          <Input value={draft.model} readOnly disabled />
-          <p className="text-xs text-neutral-500 mt-1">
-            Nombre de modelo Prisma. El archivo se guarda como <code>config/models/{draft.model}.json</code>.
-          </p>
+          <Input
+            value={draft.model}
+            readOnly
+            className="bg-muted/50 pointer-events-none"
+            title="El nombre del modelo es inmutable"
+          />
         </div>
         <div>
           <Label className="mb-1.5 block">Título</Label>
@@ -154,128 +155,213 @@ export default function CrudConfigEditor({ model }: Props) {
         </div>
       </section>
 
-      {/* Campos */}
+      {/* Columns */}
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h4 className="font-semibold">Campos</h4>
-          <Button variant="outline" onClick={addColumn}>Agregar campo</Button>
-        </div>
+        <h4 className="font-semibold">Columnas</h4>
 
         {(draft.columns || []).length === 0 ? (
-          <p className="text-sm text-neutral-500">No hay campos.</p>
+          <p className="text-sm text-neutral-500">No hay columnas.</p>
         ) : (
           <div className="space-y-4">
-            {(draft.columns || []).map((col, i) => {
-              const req = (col as any).required ?? col.validation?.required ?? false
-              return (
-                <div key={i} className="grid grid-cols-1 md:grid-cols-12 gap-3 rounded border p-3">
-                  <div className="md:col-span-3">
-                    <Label className="mb-1.5 block">Key</Label>
-                    <Input value={col.key} onChange={e => updateColumn(i, { key: e.target.value })} />
-                  </div>
-                  <div className="md:col-span-3">
-                    <Label className="mb-1.5 block">Título</Label>
-                    <Input value={col.title} onChange={e => updateColumn(i, { title: e.target.value })} />
-                  </div>
-                  <div className="md:col-span-3">
-                    <Label className="mb-1.5 block">Tipo</Label>
-                    <Select value={col.type} onValueChange={(v: any) => updateColumn(i, { type: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="md:col-span-3">
-                    <Label className="mb-1.5 block">Opciones (CSV)</Label>
-                    <Input
-                      value={(col.options || []).join(',')}
-                      onChange={e => updateColumn(i, { options: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-                      placeholder="Activo, Inactivo..."
-                      disabled={!['select','badge'].includes(col.type)}
-                    />
-                  </div>
-
-                  <div className="md:col-span-12 grid grid-cols-2 md:grid-cols-6 gap-2">
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={!!col.sortable}
-                        onChange={e => updateColumn(i, { sortable: e.target.checked })}
-                      /> sortable
-                    </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={!!col.filterable}
-                        onChange={e => updateColumn(i, { filterable: e.target.checked })}
-                      /> filterable
-                    </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={!!col.hideable}
-                        onChange={e => updateColumn(i, { hideable: e.target.checked })}
-                      /> hideable
-                    </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={!!req}
-                        onChange={e => {
-                          // guardamos en validation.required para que zod y prisma writer lo vean
-                          const nextVal = e.target.checked
-                          updateColumn(i, { validation: { ...(col.validation || {}), required: nextVal } as any })
-                        }}
-                      /> required
-                    </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={!!col.frozen}
-                        onChange={e => updateColumn(i, { frozen: e.target.checked })}
-                      /> frozen
-                    </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={!!col.unique}
-                        onChange={e => updateColumn(i, { unique: e.target.checked })}
-                      /> unique
-                    </label>
-                  </div>
-
-                  <div className="md:col-span-12 flex justify-end">
-                    <Button variant="destructive" onClick={() => removeColumn(i)}>Eliminar</Button>
-                  </div>
+            {(draft.columns || []).map((col, i) => (
+              <div key={i} className="grid grid-cols-1 md:grid-cols-12 gap-3 rounded border p-3">
+                <div className="md:col-span-3">
+                  <Label className="mb-1.5 block">Key</Label>
+                  <Input
+                    value={col.key}
+                    readOnly
+                    className="bg-muted/50 pointer-events-none"
+                    title="La clave del campo es inmutable para no romper la referencia en Prisma"
+                  />
                 </div>
-              )
-            })}
+                <div className="md:col-span-3">
+                  <Label className="mb-1.5 block">Título</Label>
+                  <Input value={col.title} onChange={e => updateColumn(i, { title: e.target.value })} />
+                </div>
+                <div className="md:col-span-3">
+                  <Label className="mb-1.5 block">Tipo</Label>
+                  <Select value={col.type} onValueChange={(v: any) => updateColumn(i, { type: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="md:col-span-3">
+                  <Label className="mb-1.5 block">Opciones (CSV)</Label>
+                  <Input
+                    value={(col.options || []).join(',')}
+                    onChange={e => updateColumn(i, { options: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                    placeholder="Activo, Inactivo..."
+                  />
+                </div>
+
+                <div className="md:col-span-12 grid grid-cols-2 md:grid-cols-6 gap-2">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={!!col.sortable}
+                      onChange={e => updateColumn(i, { sortable: e.target.checked })}
+                    /> sortable
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={!!col.filterable}
+                      onChange={e => updateColumn(i, { filterable: e.target.checked })}
+                    /> filterable
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={!!col.hideable}
+                      onChange={e => updateColumn(i, { hideable: e.target.checked })}
+                    /> hideable
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={!!(col as any).required}
+                      onChange={e => updateColumn(i, { ...(col as any), required: e.target.checked })}
+                    /> required
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={!!col.frozen}
+                      onChange={e => updateColumn(i, { frozen: e.target.checked })}
+                    /> frozen
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={!!col.unique}
+                      onChange={e => updateColumn(i, { unique: e.target.checked })}
+                    /> unique
+                  </label>
+                </div>
+
+                <div className="md:col-span-12 flex justify-end">
+                  <Button variant="destructive" onClick={() => removeColumn(i)}>Quitar</Button>
+                </div>
+              </div>
+            ))}
+
+            {/* Botón para agregar columna — AL FINAL */}
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={addColumn}>Agregar columna</Button>
+            </div>
           </div>
         )}
       </section>
 
-      {/* Acciones */}
-      <div className="flex flex-col md:flex-row gap-2 justify-end">
+      {/* Row actions — botón “Agregar” AL FINAL */}
+      <section className="space-y-3">
+        <h4 className="font-semibold">Row actions</h4>
+        {(draft.rowActions || []).length === 0 ? (
+          <p className="text-sm text-neutral-500">No hay acciones.</p>
+        ) : (
+          <div className="space-y-3">
+            {(draft.rowActions || []).map((ra, i) => (
+              <div key={i} className="grid grid-cols-1 md:grid-cols-12 gap-3 rounded border p-3">
+                <div className="md:col-span-3">
+                  <Label className="mb-1.5 block">ID</Label>
+                  <Input value={ra.id} onChange={e => {
+                    const arr = [...(draft.rowActions || [])]
+                    arr[i] = { ...ra, id: e.target.value }
+                    setDraft({ ...draft, rowActions: arr })
+                  }}/>
+                </div>
+                <div className="md:col-span-3">
+                  <Label className="mb-1.5 block">Label</Label>
+                  <Input value={ra.label} onChange={e => {
+                    const arr = [...(draft.rowActions || [])]
+                    arr[i] = { ...ra, label: e.target.value }
+                    setDraft({ ...draft, rowActions: arr })
+                  }}/>
+                </div>
+                <div className="md:col-span-3">
+                  <Label className="mb-1.5 block">Action</Label>
+                  <Input value={ra.action} onChange={e => {
+                    const arr = [...(draft.rowActions || [])]
+                    arr[i] = { ...ra, action: e.target.value as any }
+                    setDraft({ ...draft, rowActions: arr })
+                  }}/>
+                </div>
+                <div className="md:col-span-3">
+                  <Label className="mb-1.5 block">Icon</Label>
+                  <Input value={ra.icon ?? ''} onChange={e => {
+                    const arr = [...(draft.rowActions || [])]
+                    arr[i] = { ...ra, icon: e.target.value }
+                    setDraft({ ...draft, rowActions: arr })
+                  }}/>
+                </div>
+                <div className="md:col-span-12 flex justify-end">
+                  <Button variant="destructive" onClick={() => removeRowAction(i)}>Quitar</Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={addRowAction}>Agregar acción</Button>
+        </div>
+      </section>
+
+      {/* Bulk actions — botón “Agregar” AL FINAL */}
+      <section className="space-y-3">
+        <h4 className="font-semibold">Bulk actions</h4>
+        {(draft.bulkActions || []).length === 0 ? (
+          <p className="text-sm text-neutral-500">No hay acciones.</p>
+        ) : (
+          <div className="space-y-3">
+            {(draft.bulkActions || []).map((ba, i) => (
+              <div key={i} className="grid grid-cols-1 md:grid-cols-12 gap-3 rounded border p-3">
+                <div className="md:col-span-4">
+                  <Label className="mb-1.5 block">ID</Label>
+                  <Input value={ba.id} onChange={e => {
+                    const arr = [...(draft.bulkActions || [])]
+                    arr[i] = { ...ba, id: e.target.value }
+                    setDraft({ ...draft, bulkActions: arr })
+                  }}/>
+                </div>
+                <div className="md:col-span-4">
+                  <Label className="mb-1.5 block">Label</Label>
+                  <Input value={ba.label} onChange={e => {
+                    const arr = [...(draft.bulkActions || [])]
+                    arr[i] = { ...ba, label: e.target.value }
+                    setDraft({ ...draft, bulkActions: arr })
+                  }}/>
+                </div>
+                <div className="md:col-span-4">
+                  <Label className="mb-1.5 block">Action</Label>
+                  <Input value={ba.action} onChange={e => {
+                    const arr = [...(draft.bulkActions || [])]
+                    arr[i] = { ...ba, action: e.target.value as any }
+                    setDraft({ ...draft, bulkActions: arr })
+                  }}/>
+                </div>
+                <div className="md:col-span-12 flex justify-end">
+                  <Button variant="destructive" onClick={() => removeBulkAction(i)}>Quitar</Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={addBulkAction}>Agregar acción masiva</Button>
+        </div>
+      </section>
+
+      {/* Guardar */}
+      <div className="flex justify-end gap-2">
         <Button
-          variant="outline"
           onClick={() => draft && saveMutation.mutate(draft)}
           disabled={disableSave || saveMutation.isPending}
         >
-          {saveMutation.isPending ? 'Guardando JSON…' : 'Guardar JSON'}
-        </Button>
-        <Button
-          onClick={() => syncMutation.mutate()}
-          disabled={syncMutation.isPending}
-        >
-          {syncMutation.isPending ? 'Sincronizando…' : 'Sincronizar Prisma'}
+          {saveMutation.isPending ? 'Guardando…' : 'Guardar cambios'}
         </Button>
       </div>
-
-      <p className="text-xs text-neutral-500">
-        Después de sincronizar Prisma, ejecuta en tu terminal:
-        <code className="ml-2 font-mono">$ npx prisma migrate dev</code>
-      </p>
     </div>
   )
 }

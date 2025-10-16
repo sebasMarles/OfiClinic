@@ -80,7 +80,10 @@ export function DynamicForm({
   // validación global (para deshabilitar botón aunque no haya “touched”)
   const zres = useMemo(() => schema.safeParse(formData), [schema, formData])
 
-  const editableColumns = columns.filter(col => col.key !== 'id' && col.key !== 'createdAt' && col.key !== 'updatedAt')
+  const editableColumns = columns
+  .filter(col => col.key !== 'id' && col.key !== 'createdAt' && col.key !== 'updatedAt')
+  .filter(col => !col.hidden && col.render !== 'grid')  // solo form o grid-form
+
 
   // ------------ helpers ------------
   const setFieldError = (key: string, msg?: string) => {

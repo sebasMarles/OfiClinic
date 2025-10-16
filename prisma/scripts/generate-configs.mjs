@@ -1,201 +1,134 @@
 // prisma/scripts/generate-configs.mjs
 import fs from 'fs'
 import path from 'path'
+import { spawnSync } from 'child_process'
 
 const ROOT = process.cwd()
 const SCHEMA = path.resolve(ROOT, 'prisma/schema.prisma')
-const MODELS_DIR = path.resolve(ROOT, 'config/models')
 const OUT_DIR = path.resolve(ROOT, 'config/crud')
-const OUT_TABLES = path.join(OUT_DIR, 'configTables.json')
-const OUT_DETAIL = path.join(OUT_DIR, 'configTableDetail.json')
+const OUT_TABLES = path.join(OUT_DIR, 'crudTable.json')
+// 👇 tu ensure está en LA MISMA CARPETA prisma/scripts
+const ENSURE_SCRIPT = path.resolve(ROOT, 'prisma/scripts/ensure-model-jsons.mjs')
 
-// Cambia a true si también quieres purgar detalles de modelos inexistentes
-const PRUNE_DETAIL = false
+// Tipos escalares de Prisma
+const PRISMA_SCALARS = new Set([
+  'String', 'Int', 'BigInt', 'Float', 'Decimal', 'Boolean', 'DateTime', 'Json', 'Bytes'
+])
 
-// --- helpers ---
-function loadJson(file, fallback) {
-  try { return JSON.parse(fs.readFileSync(file, 'utf-8')) } catch { return fallback }
+// Modelos y campos a ignorar por defecto
+const IGNORE_MODELS = new Set(['Collection', 'Field', 'DynamicRecord', 'PrismaMigration'])
+const EXCLUDE_FIELDS = new Set(['id', 'createdAt', 'updatedAt'])
+
+// ---- utils ----
+function readSchema() {
+  if (!fs.existsSync(SCHEMA)) {
+    console.error('❌ No se encontró prisma/schema.prisma')
+    process.exit(1)
+  }
+  return fs.readFileSync(SCHEMA, 'utf-8')
 }
-function saveJson(file, data) {
-  if (!fs.existsSync(path.dirname(file))) fs.mkdirSync(path.dirname(file), { recursive: true })
-  fs.writeFileSync(file, JSON.stringify(data, null, 2))
-}
-function readAllModelJsons() {
-  if (!fs.existsSync(MODELS_DIR)) return []
-  const files = fs.readdirSync(MODELS_DIR).filter(f => f.endsWith('.json'))
+
+function allModels(schemaText) {
   const out = []
-  for (const f of files) {
-    try {
-      const obj = JSON.parse(fs.readFileSync(path.join(MODELS_DIR, f), 'utf-8'))
-      if (obj?.model) out.push(obj)
-    } catch {}
-  }
-  return out
-}
-function toTitle(s) {
-  if (!s) return s
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
-function parseKeyValueList(str) {
-  // muy simple: "status: parametrized, foo: bar"
-  const out = {}
-  for (const pair of String(str || '').split(',')) {
-    const [k, v] = pair.split(':').map(s => s?.trim())
-    if (!k) continue
-    if (v) out[k] = v.replace(/^['"]|['"]$/g, '')
+  const re = /(^|\n)\s*model\s+(\w+)\s*\{([\s\S]*?)\}/g
+  let m
+  while ((m = re.exec(schemaText)) !== null) {
+    out.push({ name: m[2], blockText: m[3], idx: m.index })
   }
   return out
 }
 
-// --- descubrimiento de modelos y meta desde schema ---
-// Detecta: (1) modelos con "/// @crud(...)" encima, (2) modelos prefijo "Crud"
+function hasCrudDocBefore(schemaText, modelIdx) {
+  // mira unas líneas antes del bloque model para encontrar "/// @crud"
+  const windowStart = Math.max(0, modelIdx - 600)
+  const win = schemaText.slice(windowStart, modelIdx)
+  return /\/\/\/\s*@crud(?:\(|\s|$)/i.test(win)
+}
+
 function discoverCrudModels(schemaText) {
-  const models = []
-  const lines = schemaText.split('\n')
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim()
-    if (line.startsWith('model ')) {
-      const m = /^model\s+(\w+)\s*\{/.exec(line)
-      if (!m) continue
-      const modelName = m[1]
+  const models = allModels(schemaText)
 
-      // mira 5 líneas hacia arriba por anotación @crud
-      const window = lines.slice(Math.max(0, i - 5), i).join('\n')
-      const crudLine = /\/\/\/\s*@crud(?:\(([^)]*)\))?/i.exec(window)
-      const hasCrudDoc = !!crudLine
-      const hasPrefix = /^Crud/i.test(modelName)
-      if (hasCrudDoc || hasPrefix) {
-        const meta = crudLine?.[1] ? parseKeyValueList(crudLine[1]) : {}
-        models.push({ name: modelName, meta })
-      }
-    }
+  // 1) por marca @crud o nombre que empiece con Crud
+  let selected = models.filter(m =>
+    hasCrudDocBefore(schemaText, m.idx) || /^Crud/i.test(m.name)
+  )
+
+  // 2) fallback: si no hay ninguno, tomar todos excepto los “sistémicos”
+  if (selected.length === 0) {
+    selected = models.filter(m => !IGNORE_MODELS.has(m.name))
   }
-  return models
+
+  return selected
 }
 
-// --- parseo básico de campos de un modelo ---
-function parseModelFields(schemaText, model) {
-  const re = new RegExp(`model\\s+${model}\\s*\\{([\\s\\S]*?)\\}`, 'm')
-  const m = re.exec(schemaText)
-  if (!m) return []
-  return m[1]
+function parseFields(blockText) {
+  // Devuelve [{ name, typeClean, isOptional, isList, isScalar, isRelation }]
+  return blockText
     .split('\n')
     .map(s => s.trim())
     .filter(s => s && !s.startsWith('//') && !s.startsWith('@@'))
     .map(line => {
-      const [name, type, ...rest] = line.split(/\s+/)
-      return { name, type, raw: rest.join(' ') }
+      const [name, typeRaw] = line.split(/\s+/)
+      if (!name || !typeRaw) return null
+      const isOptional = /\?$/.test(typeRaw)
+      const isList = /\[\]/.test(typeRaw)
+      const typeClean = typeRaw.replace(/\?|\[\]/g, '')
+      const isScalar = PRISMA_SCALARS.has(typeClean)
+      return { name, typeClean, isOptional, isList, isScalar }
     })
+    .filter(Boolean)
 }
 
-// --- heurística de columnas ---
-function toColumnConfig(field) {
-  const k = field.name
-  const t = field.type.replace('?', '')
-  const base = { key: k, title: toTitle(k), sortable: true, filterable: true, type: 'text' }
-  if (['Int','BigInt','Float','Decimal'].includes(t)) return { ...base, type: 'number' }
-  if (t === 'Boolean') return { ...base, type: 'boolean' }
-  if (t === 'DateTime') return { ...base, type: 'date' }
-  if (/Email/i.test(k)) return { ...base, type: 'email' }
-  return base
+function mapPrismaToCrudType(typeClean, isScalar) {
+  if (!isScalar) return 'String' // relaciones → String (según tu ejemplo)
+  if (['Int','BigInt','Float','Decimal'].includes(typeClean)) return 'Number'
+  // String, Boolean, DateTime, Json, Bytes → como están (salvo Json/Bytes, que no has mostrado; los dejamos como String)
+  if (typeClean === 'Json' || typeClean === 'Bytes') return 'String'
+  return typeClean // "String" | "Boolean" | "DateTime"
+}
+
+function buildCrudTable(modelsParsed) {
+  const out = { models: [] }
+
+  for (const m of modelsParsed) {
+    const fields = parseFields(m.blockText)
+      .filter(f => !EXCLUDE_FIELDS.has(f.name))
+      .map(f => ({
+        key: f.name,
+        type: mapPrismaToCrudType(f.typeClean, f.isScalar),
+        required: !f.isOptional // listas no llevan "?" → quedarán true (coincide con tu ejemplo)
+      }))
+
+    out.models.push({ name: m.name, fields })
+  }
+
+  return out
 }
 
 function main() {
-  const schema = fs.readFileSync(SCHEMA, 'utf-8')
-  const discovered = discoverCrudModels(schema) // [{ name, meta: { status? } }]
-  const presentSet = new Set(discovered.map(d => d.name))
+  const schema = readSchema()
+  const discovered = discoverCrudModels(schema) // { name, blockText }[]
 
   if (!fs.existsSync(OUT_DIR)) fs.mkdirSync(OUT_DIR, { recursive: true })
 
-  // lee modelos JSON (config/models/*.json) → status/title/etc
-  const modelJsons = readAllModelJsons()
-  const jsonByModel = new Map(modelJsons.map(j => [String(j.model), j]))
+  const crudTable = buildCrudTable(discovered)
+  fs.writeFileSync(OUT_TABLES, JSON.stringify(crudTable, null, 2))
+  console.log(`✅ Generado ${OUT_TABLES} con ${crudTable.models.length} modelo(s).`)
 
-  // --- OUT_TABLES (índice): PRIMERO, PURGAR lo que ya no exista en el schema ---
-  const tables = loadJson(OUT_TABLES, { models: [] })
-  const before = tables.models.length
-  const removed = tables.models.filter(m => !presentSet.has(m.model)).map(m => m.model)
-  if (removed.length > 0) {
-    console.log(`🧹 Quitando del índice (configTables.json): ${removed.join(', ')}`)
-  }
-  tables.models = tables.models.filter(m => presentSet.has(m.model))
+  // NO creamos configTableDetail.json
 
-  // reindex después de purgar
-  const indexByModel = new Map(tables.models.map((m, i) => [m.model, i]))
-
-  // Ahora añadimos/actualizamos los modelos descubiertos
-  for (const { name, meta } of discovered) {
-    const fromJson = jsonByModel.get(name) || {}
-    const desiredStatus =
-      (meta?.status && ['parametrized','inactive','unset'].includes(meta.status) ? meta.status :
-      (typeof fromJson.status === 'string' && ['parametrized','inactive','unset'].includes(fromJson.status) ? fromJson.status :
-      undefined)) || 'unset'
-
-    if (indexByModel.has(name)) {
-      // actualiza status y (opcional) title si viene del json
-      const idx = indexByModel.get(name)
-      tables.models[idx].status = desiredStatus
-      if (fromJson?.title) tables.models[idx].title = fromJson.title
+  // Llamar al ensure que vive en prisma/scripts
+  if (fs.existsSync(ENSURE_SCRIPT)) {
+    console.log('▶ Ejecutando prisma/scripts/ensure-model-jsons.mjs …')
+    const res = spawnSync('node', [ENSURE_SCRIPT], { stdio: 'inherit', env: process.env })
+    if (res.status !== 0) {
+      console.warn('⚠ ensure-model-jsons.mjs terminó con código', res.status)
     } else {
-      tables.models.push({
-        model: name,
-        title: fromJson?.title || name,
-        status: desiredStatus,
-      })
-      indexByModel.set(name, tables.models.length - 1)
+      console.log('✅ ensure-model-jsons.mjs finalizado.')
     }
+  } else {
+    console.log('ℹ No se encontró prisma/scripts/ensure-model-jsons.mjs (saltado).')
   }
-  saveJson(OUT_TABLES, tables)
-
-  // --- OUT_DETAIL (detalle por modelo): opcionalmente purgar también ---
-  const detail = loadJson(OUT_DETAIL, {})
-  if (PRUNE_DETAIL) {
-    let pruned = 0
-    for (const key of Object.keys(detail)) {
-      if (!presentSet.has(key)) { delete detail[key]; pruned++ }
-    }
-    if (pruned > 0) console.log(`🧹 Quitando ${pruned} modelos del detalle (configTableDetail.json) al no existir en schema.`)
-  }
-
-  // sincroniza/crea detalle (solo status si ya existe)
-  for (const { name, meta } of discovered) {
-    const fromJson = jsonByModel.get(name) || {}
-    const desiredStatus =
-      (meta?.status && ['parametrized','inactive','unset'].includes(meta.status) ? meta.status :
-      (typeof fromJson.status === 'string' && ['parametrized','inactive','unset'].includes(fromJson.status) ? fromJson.status :
-      undefined)) || 'unset'
-
-    if (!detail[name]) {
-      const fields = parseModelFields(schema, name)
-      const columnsHeur = fields
-        .filter(f => !['id','createdAt','updatedAt'].includes(f.name))
-        .map(toColumnConfig)
-
-      detail[name] = {
-        model: name,
-        title: fromJson?.title || name,
-        description: fromJson?.description || undefined,
-        status: desiredStatus,
-        columns: Array.isArray(fromJson?.columns) && fromJson.columns.length > 0 ? fromJson.columns : columnsHeur,
-        rowActions: Array.isArray(fromJson?.rowActions) ? fromJson.rowActions : [
-          { id: 'edit', label: 'Editar', icon: 'pencil', variant: 'ghost', action: 'edit' },
-        ],
-        bulkActions: Array.isArray(fromJson?.bulkActions) ? fromJson.bulkActions : [
-          { id: 'export', label: 'Exportar CSV', icon: 'download', variant: 'outline', action: 'export' },
-        ],
-        relations: Array.isArray(fromJson?.relations) ? fromJson.relations : undefined,
-        containerId: fromJson?.containerId || undefined,
-      }
-    } else {
-      // ya existe → NO piso config; solo sincronizo el status
-      detail[name].status = desiredStatus
-    }
-  }
-  saveJson(OUT_DETAIL, detail)
-
-  const after = tables.models.length
-  const added = discovered.length - (before - removed.length)
-  console.log(`✅ ConfigCrud actualizado. Modelos en índice: ${after} ${removed.length ? `(eliminados: ${removed.length})` : ''}`)
 }
 
 main()

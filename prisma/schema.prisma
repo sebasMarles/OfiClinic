@@ -70,7 +70,7 @@ model Services {
   active      Boolean  @default(true)
 }
 
-/// @crud
+
 model Prueba {
   id          String   @id @default(cuid())
   code String?
@@ -80,7 +80,7 @@ model Prueba {
   updatedAt   DateTime @updatedAt
 }
 
-/// @crud
+
 model Prueba2 {
   id          String   @id @default(cuid())
   code String?

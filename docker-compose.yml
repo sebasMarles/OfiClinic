@@ -23,7 +23,7 @@ services:
     container_name: oficlinic-pgadmin
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@local
-      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_PASSWORD: root
     ports:
       - "5050:80"
     depends_on:

@@ -1,0 +1,209 @@
+{
+  "models": [
+    {
+      "name": "Tariff",
+      "fields": [
+        {
+          "key": "code",
+          "type": "String",
+          "required": false
+        },
+        {
+          "key": "name",
+          "type": "String",
+          "required": false
+        },
+        {
+          "key": "price",
+          "type": "Number",
+          "required": false
+        },
+        {
+          "key": "active",
+          "type": "Boolean",
+          "required": false
+        }
+      ]
+    },
+    {
+      "name": "Recipes",
+      "fields": [
+        {
+          "key": "description",
+          "type": "String",
+          "required": false
+        },
+        {
+          "key": "firstName",
+          "type": "String",
+          "required": true
+        },
+        {
+          "key": "active",
+          "type": "Boolean",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "Patient",
+      "fields": [
+        {
+          "key": "documentType",
+          "type": "String",
+          "required": true
+        },
+        {
+          "key": "documentNumber",
+          "type": "String",
+          "required": true
+        },
+        {
+          "key": "firstName",
+          "type": "String",
+          "required": true
+        },
+        {
+          "key": "lastName",
+          "type": "String",
+          "required": true
+        },
+        {
+          "key": "email",
+          "type": "String",
+          "required": true
+        },
+        {
+          "key": "phone",
+          "type": "String",
+          "required": true
+        },
+        {
+          "key": "birthDate",
+          "type": "DateTime",
+          "required": true
+        },
+        {
+          "key": "gender",
+          "type": "String",
+          "required": true
+        },
+        {
+          "key": "active",
+          "type": "Boolean",
+          "required": true
+        },
+        {
+          "key": "clinicalHistories",
+          "type": "String",
+          "required": true
+        },
+        {
+          "key": "appointments",
+          "type": "String",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "Professional",
+      "fields": [
+        {
+          "key": "fullName",
+          "type": "String",
+          "required": true
+        },
+        {
+          "key": "email",
+          "type": "String",
+          "required": true
+        },
+        {
+          "key": "phone",
+          "type": "String",
+          "required": true
+        },
+        {
+          "key": "specialty",
+          "type": "String",
+          "required": true
+        },
+        {
+          "key": "active",
+          "type": "Boolean",
+          "required": true
+        },
+        {
+          "key": "appointments",
+          "type": "String",
+          "required": true
+        },
+        {
+          "key": "clinicalHistories",
+          "type": "String",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "Services",
+      "fields": [
+        {
+          "key": "code",
+          "type": "String",
+          "required": true
+        },
+        {
+          "key": "description",
+          "type": "String",
+          "required": false
+        },
+        {
+          "key": "active",
+          "type": "Boolean",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "ClinicalHistory",
+      "fields": [
+        {
+          "key": "patientId",
+          "type": "String",
+          "required": true
+        },
+        {
+          "key": "professionalId",
+          "type": "String",
+          "required": false
+        },
+        {
+          "key": "date",
+          "type": "DateTime",
+          "required": true
+        },
+        {
+          "key": "notes",
+          "type": "String",
+          "required": false
+        },
+        {
+          "key": "diagnosis",
+          "type": "String",
+          "required": false
+        },
+        {
+          "key": "patient",
+          "type": "String",
+          "required": true
+        },
+        {
+          "key": "professional",
+          "type": "String",
+          "required": false
+        }
+      ]
+    }
+  ]
+}

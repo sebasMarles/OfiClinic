@@ -40,8 +40,13 @@ export function GenericTable({
 }: GenericTableProps) {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
-    new Set(config.columns.filter(col => !col.hidden).map(col => col.key)),
-  )
+  new Set(
+    config.columns
+      .filter(col => !col.hidden && col.render !== 'form' && !col.hideable)
+      .map(col => col.key)
+  ),
+)
+
   const [sortColumn, setSortColumn] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [currentPage, setCurrentPage] = useState(1)
@@ -167,7 +172,9 @@ export function GenericTable({
     downloadCSV(csv, `${config.model}-export.csv`)
   }
 
-  const visibleColumnConfigs = config.columns.filter(col => visibleColumns.has(col.key))
+  const visibleColumnConfigs = config.columns
+  .filter(col => !col.hidden && col.render !== 'form') // fuera del grid si es "form"
+  .filter(col => visibleColumns.has(col.key))
 
   const frozenColumns = visibleColumnConfigs.filter(col => col.frozen)
   const regularColumns = visibleColumnConfigs.filter(col => !col.frozen)
