@@ -1,7 +1,6 @@
 'use client'
 import type React from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -22,7 +21,6 @@ interface DynamicFormProps {
   onSubmit: (data: any) => void
   title: string
   description?: string
-  /** opcional: slug del modelo para /check-unique; si no viene, se infiere del path */
   modelSlug?: string
 }
 

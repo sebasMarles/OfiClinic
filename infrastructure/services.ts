@@ -13,7 +13,7 @@ export async function listRecords(
     sortOrder?: SortOrder
   },
 ) {
-  const { page = 1, pageSize = 10, search = '', sortBy = 'createdAt', sortOrder = 'desc' } = params
+  const { page = 1, pageSize = 3, search = '', sortBy = 'createdAt', sortOrder = 'desc' } = params
 
   const where = buildWhere(model, search)
 
@@ -80,6 +80,13 @@ function buildWhere(model: string, search: string) {
           contains('email'),
           contains('phone'),
           contains('specialty'),
+        ],
+      }
+      case 'services':
+      return {
+        OR: [
+          contains('codigo'),
+          contains('descripcion'),
         ],
       }
     default:

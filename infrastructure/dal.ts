@@ -40,6 +40,7 @@ export function keyFor(model: string): keyof typeof prisma {
   // Aliases/plurales comunes
   if (m === 'patients') return 'patient'
   if (m === 'professionals') return 'professional'
+  if (m === 'services') return 'services'
   if (m === 'clinicalhistory' || m === 'clinicalhistories') return 'clinicalHistory'
   if (m === 'appointments') return 'appointment'
   if (m === 'collections') return 'collection'

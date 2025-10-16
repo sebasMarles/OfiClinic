@@ -1,75 +1,92 @@
 // lib/config-loader.ts
-import type { TableConfig, ColumnConfig } from '@/types/table-config'
+import fs from 'fs'
+import path from 'path'
+import type { TableConfig } from '@/types/table-config'
+import type { ConfigCrudEntry } from '@/types/config-crud'
 import patients from '@/config/models/patients.json'
 import professionals from '@/config/models/professionals.json'
+import services from '@/config/models/services.json'
 import { prisma } from '@/lib/prisma'
 
-// Mapa estático por slug y también por plural
 const staticBySlug: Record<string, TableConfig> = {
   patient: patients as TableConfig,
   patients: patients as TableConfig,
   professional: professionals as TableConfig,
   professionals: professionals as TableConfig,
+  services: services as TableConfig,
 }
 
-// Convierte una "Collection" de DB (si estás usando el builder) a TableConfig
-function collectionToTableConfig(col: any): TableConfig {
-  const columns: ColumnConfig[] = col.fields
-    .sort((a: any, b: any) => a.order - b.order)
-    .map((f: any) => {
-      const base: ColumnConfig = {
-        key: f.key,
-        title: f.title || f.key,
-        type: f.type as ColumnConfig['type'],
-        sortable: true,
-        filterable: !!f.filterable,
-        hideable: !!f.hidden,
-      }
-      if (f.type === 'select' || f.type === 'badge') {
-        base.options = f.options?.options ?? []
-      }
-      // Si marcaste “requerido” en el builder, guárdalo para validación
-      ;(base as any).required = !!f.required
-      return base
-    })
+const CRUD_DIR = path.resolve(process.cwd(), 'config/crud')
+const TABLES_FILE = path.join(CRUD_DIR, 'configTables.json')
+const DETAIL_FILE = path.join(CRUD_DIR, 'configTableDetail.json')
 
-  return {
-    model: col.slug, // usamos slug como identificador
-    title: col.title ?? col.slug,
-    description: col.description ?? undefined,
-    columns,
-    enableSelection: true,
-    enableMultiSelection: true,
-    enablePagination: true,
-    pageSize: 20,
-    enableSearch: true,
-    enableFilters: true,
-    enableExport: true,
-  }
+function readCrudDetail(): Record<string, ConfigCrudEntry> {
+  try { return JSON.parse(fs.readFileSync(DETAIL_FILE, 'utf-8')) } catch { return {} }
 }
 
 export async function getTableConfig(modelName: string): Promise<TableConfig | null> {
   const slug = (modelName || '').toLowerCase()
 
-  // 1) Intenta estático
+  // 1) ConfigCrud (detalles)
+  const crud = readCrudDetail()
+  const match = Object.values(crud).find(c => c.model.toLowerCase() === slug)
+  if (match && match.status !== 'inactive') {
+    // adapta ConfigCrudEntry → TableConfig
+    return {
+      model: match.model,
+      title: match.title,
+      description: match.description,
+      columns: match.columns,                 // ColumnConfigExtended es compatible con ColumnConfig
+      rowActions: match.rowActions,
+      bulkActions: match.bulkActions,
+      enableSelection: true,
+      enableMultiSelection: true,
+      enablePagination: true,
+      pageSize: 20,
+      enableSearch: true,
+      enableFilters: true,
+      enableExport: true,
+    }
+  }
+
+  // 2) Config estático legacy
   if (staticBySlug[slug]) return staticBySlug[slug]
 
-  // 2) Intenta colección dinámica en DB (builder)
+  // 3) (Opcional) Fallback temporal a collections del builder (mientras migras)
   const col = await prisma.collection.findUnique({
     where: { slug },
     include: { fields: { orderBy: { order: 'asc' } } },
   })
-  if (col) return collectionToTableConfig(col)
+  if (col) {
+    const columns = col.fields
+      .sort((a: any, b: any) => a.order - b.order)
+      .map((f: any) => ({
+        key: f.key,
+        title: f.title || f.key,
+        type: f.type,
+        sortable: true,
+        filterable: !!f.filterable,
+        hideable: !!f.hidden,
+        ...(f.type === 'select' || f.type === 'badge' ? { options: f.options?.options ?? [] } : {}),
+        required: !!f.required,
+      }))
+    return {
+      model: col.slug,
+      title: col.title ?? col.slug,
+      description: col.description ?? undefined,
+      columns,
+      enableSelection: true, enableMultiSelection: true, enablePagination: true, pageSize: 20,
+      enableSearch: true, enableFilters: true, enableExport: true,
+    }
+  }
 
   return null
 }
 
 export async function getAvailableModels(): Promise<string[]> {
+  // ahora sale de ConfigCrud + estáticos + (opcional) builder legacy
+  const crud = (() => { try { return JSON.parse(fs.readFileSync(TABLES_FILE, 'utf-8')) } catch { return { models: [] } } })()
+  const fromCrud = (crud.models || []).map((m: any) => m.model)
   const dbSlugs = await prisma.collection.findMany({ select: { slug: true } })
-  return [
-    ...new Set([
-      ...Object.keys(staticBySlug),
-      ...dbSlugs.map(x => x.slug),
-    ]),
-  ]
+  return [...new Set([...Object.keys(staticBySlug), ...fromCrud, ...dbSlugs.map(x => x.slug)])]
 }

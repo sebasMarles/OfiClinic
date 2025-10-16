@@ -1,6 +1,7 @@
 {
   "model": "Patient",
   "title": "Pacientes",
+  "status": "parametrized",
   "description": "Gestión de pacientes",
   "columns": [
     { "key": "id", "title": "ID", "type": "text", "sortable": true, "hideable": true, "hidden": true },

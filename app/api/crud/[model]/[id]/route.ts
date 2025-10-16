@@ -83,7 +83,6 @@ export async function PUT(
     const schema = schemaFromConfig(cfg)
     const parsed = schema.parse(prepped)
 
-    // Chequeos de unicidad (excluyendo el propio id)
     const uc = getUseCasesFor(slug)
     for (const col of cfg.columns.filter(c => c.unique)) {
       const val = (parsed as any)[col.key]

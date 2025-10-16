@@ -1,0 +1,53 @@
+{
+  "model": "Tariff",
+  "title": "Tariff",
+  "status": "unset",
+  "columns": [
+    {
+      "key": "code",
+      "title": "Code",
+      "sortable": true,
+      "filterable": true,
+      "type": "text"
+    },
+    {
+      "key": "name",
+      "title": "Name",
+      "sortable": true,
+      "filterable": true,
+      "type": "text"
+    },
+    {
+      "key": "price",
+      "title": "Price",
+      "sortable": true,
+      "filterable": true,
+      "type": "number"
+    },
+    {
+      "key": "active",
+      "title": "Active",
+      "sortable": true,
+      "filterable": true,
+      "type": "boolean"
+    }
+  ],
+  "rowActions": [
+    {
+      "id": "edit",
+      "label": "Editar",
+      "icon": "pencil",
+      "variant": "ghost",
+      "action": "edit"
+    }
+  ],
+  "bulkActions": [
+    {
+      "id": "export",
+      "label": "Exportar CSV",
+      "icon": "download",
+      "variant": "outline",
+      "action": "export"
+    }
+  ]
+}

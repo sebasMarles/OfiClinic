@@ -36,8 +36,9 @@ export function TablePagination({
             <SelectTrigger className='h-8 w-16'>
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value='10'>10</SelectItem>
+            <SelectContent>            
+              <SelectItem value='3'>3</SelectItem>
+              <SelectItem value='10'>20</SelectItem>
               <SelectItem value='20'>20</SelectItem>
               <SelectItem value='50'>50</SelectItem>
               <SelectItem value='100'>100</SelectItem>

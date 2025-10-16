@@ -1,0 +1,74 @@
+{
+  "model": "ClinicalHistory",
+  "title": "ClinicalHistory",
+  "status": "unset",
+  "columns": [
+    {
+      "key": "patientId",
+      "title": "PatientId",
+      "sortable": true,
+      "filterable": true,
+      "type": "text"
+    },
+    {
+      "key": "professionalId",
+      "title": "ProfessionalId",
+      "sortable": true,
+      "filterable": true,
+      "type": "text"
+    },
+    {
+      "key": "date",
+      "title": "Date",
+      "sortable": true,
+      "filterable": true,
+      "type": "date"
+    },
+    {
+      "key": "notes",
+      "title": "Notes",
+      "sortable": true,
+      "filterable": true,
+      "type": "text"
+    },
+    {
+      "key": "diagnosis",
+      "title": "Diagnosis",
+      "sortable": true,
+      "filterable": true,
+      "type": "text"
+    },
+    {
+      "key": "patient",
+      "title": "Patient",
+      "sortable": true,
+      "filterable": true,
+      "type": "text"
+    },
+    {
+      "key": "professional",
+      "title": "Professional",
+      "sortable": true,
+      "filterable": true,
+      "type": "text"
+    }
+  ],
+  "rowActions": [
+    {
+      "id": "edit",
+      "label": "Editar",
+      "icon": "pencil",
+      "variant": "ghost",
+      "action": "edit"
+    }
+  ],
+  "bulkActions": [
+    {
+      "id": "export",
+      "label": "Exportar CSV",
+      "icon": "download",
+      "variant": "outline",
+      "action": "export"
+    }
+  ]
+}

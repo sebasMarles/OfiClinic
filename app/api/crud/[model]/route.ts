@@ -6,7 +6,6 @@ import { getTableConfig } from '@/lib/config-loader'
 import { schemaFromConfig } from '@/domain/validation/schema-from-config'
 import type { TableConfig } from '@/types/table-config'
 
-/** Coerción por tipo desde config JSON */
 function coercePayloadByConfig(payload: any, cfg: TableConfig) {
   const out: any = {}
   for (const col of cfg.columns) {
@@ -93,7 +92,6 @@ export async function POST(
     const schema = schemaFromConfig(cfg)
     const parsed = schema.parse(prepped)
 
-    // Chequeos de unicidad declarados en JSON antes de persistir
     const uc = getUseCasesFor(slug)
     for (const col of cfg.columns.filter(c => c.unique)) {
       const val = (parsed as any)[col.key]

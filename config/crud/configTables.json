@@ -1,0 +1,44 @@
+{
+  "models": [
+    {
+      "model": "Patient",
+      "title": "Pacientes",
+      "status": "parametrized"
+    },
+    {
+      "model": "Professional",
+      "title": "Profesionales de la Salud",
+      "status": "parametrized"
+    },
+    {
+      "model": "Services",
+      "title": "Servicios",
+      "status": "unset"
+    },
+    {
+      "model": "Recipes",
+      "title": "Facturas",
+      "status": "inactive"
+    },
+    {
+      "model": "Tariff",
+      "title": "Tariff",
+      "status": "unset"
+    },
+    {
+      "model": "ClinicalHistory",
+      "title": "ClinicalHistory",
+      "status": "unset"
+    },
+    {
+      "model": "Prueba",
+      "title": "Prueba",
+      "status": "parametrized"
+    },
+    {
+      "model": "Prueba2",
+      "title": "Prueba2",
+      "status": "inactive"
+    }
+  ]
+}

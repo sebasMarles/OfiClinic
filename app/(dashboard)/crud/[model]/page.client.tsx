@@ -115,7 +115,7 @@ export function CrudPageClient({ config, model }: { config: TableConfig; model: 
         onSubmit={handleFormSubmit}
         title={editingRow ? `Editar ${config.model}` : `Crear ${config.model}`}
         description={config.description}
-        modelSlug={(config.model || '').toLowerCase()}   // ✅ pasamos el slug al form para /check-unique
+        modelSlug={(config.model || '').toLowerCase()}  
       />
     </>
   )
