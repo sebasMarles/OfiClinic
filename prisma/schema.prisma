@@ -70,22 +70,20 @@ model Services {
   active      Boolean  @default(true)
 }
 
-
 model Prueba {
   id          String   @id @default(cuid())
-  code String?
+  code        String?
   description String?
-  active Boolean? @default(true)
+  active      Boolean? @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
 
-
 model Prueba2 {
   id          String   @id @default(cuid())
-  code String?
+  code        String?
   description String?
-  active Boolean? @default(true)
+  active      Boolean? @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -121,4 +119,47 @@ model Appointment {
 
   @@index([professionalId, startsAt])
   @@index([patientId, startsAt])
+}
+
+model configCrud {
+  id                   String   @id @default(cuid())
+  model                String   @unique
+  title                String
+  enableSelection      Boolean? @default(true) @map("enable_selection")
+  enableMultiSelection Boolean? @default(true) @map("enable_multi_selection")
+  enablePagination     Boolean? @default(true) @map("enable_pagination")
+  pageSize             Int      @default(10) @map("page_size")
+  enableSearch         Boolean? @default(true)
+  searchPlaceHolder    String?  @default("Search...") @map("search_place_holder")
+  enableFilters        Boolean? @default(true) @map("enable_filters")
+  enableExport         Boolean? @default(true) @map("enable_export")
+  relations            String[] @default([]) //solo se hace referencia al nombre del modelo
+  bulkActions          String[] @default([]) @map("bulk_actions") //delete, export
+  rowActions           String[] @default([]) @map("row_actions") //edit,
+
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  configCrudDetail configCrudDetail[]
+}
+
+model configCrudDetail {
+  id           String   @id @default(cuid())
+  configCrudId String   @map("config_crud_id")
+  type         String //string, number, boolean, date, datetime, relation
+  title        String
+  sortable     Boolean? @default(true)
+  filterable   Boolean? @default(true)
+  frozen       Boolean? @default(false)
+  required     Boolean? @default(false)
+  hidden       Boolean? @default(false)
+  hideable     Boolean? @default(false)
+  render       String? //grid, form y grid-form
+  listOptions  String?  @map("list_options")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  configCrud configCrud @relation(fields: [configCrudId], references: [id], onDelete: Cascade)
+
+  @@index([configCrudId])
 }
