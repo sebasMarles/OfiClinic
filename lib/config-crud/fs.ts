@@ -6,8 +6,7 @@ import path from 'path'
 const ROOT = process.cwd()
 const MODELS_DIR = path.resolve(ROOT, 'config/models')
 const OUT_DIR = path.resolve(ROOT, 'config/crud')
-const OUT_TABLES = path.join(OUT_DIR, 'configTables.json')
-const OUT_DETAIL = path.join(OUT_DIR, 'configTableDetail.json')
+const OUT_TABLES = path.join(OUT_DIR, 'crudTable.json')
 
 async function ensureDir(p: string) {
   try { await fs.mkdir(p, { recursive: true }) } catch {}
@@ -31,27 +30,20 @@ export async function readModelJson(model: string): Promise<any | null> {
   return null
 }
 
+function pickWritePath(model: string) {
+  for (const f of candidatesFor(model)) {
+    try { fssync.accessSync(f); return f } catch {}
+  }
+  return path.join(MODELS_DIR, `${model}.json`)
+}
+
 export async function writeModelJson(model: string, obj: any) {
   await ensureDir(MODELS_DIR)
-  const file = path.join(MODELS_DIR, `${model}.json`)
+  const file = pickWritePath(model)
   await fs.writeFile(file, JSON.stringify(obj, null, 2))
 }
 
-export async function readConfigDetail(): Promise<Record<string, any>> {
-  try {
-    const raw = await fs.readFile(OUT_DETAIL, 'utf-8')
-    return raw ? JSON.parse(raw) : {}
-  } catch {
-    return {}
-  }
-}
-
-export async function writeConfigDetail(detail: Record<string, any>) {
-  await ensureDir(OUT_DIR)
-  await fs.writeFile(OUT_DETAIL, JSON.stringify(detail, null, 2))
-}
-
-export async function readConfigTables(): Promise<{ models: Array<{ model:string; title:string; status:string }> }> {
+export async function readCrudTable(): Promise<{ models: Array<{ name: string; fields?: any[] }> }> {
   try {
     const raw = await fs.readFile(OUT_TABLES, 'utf-8')
     const obj = raw ? JSON.parse(raw) : { models: [] }
@@ -62,30 +54,15 @@ export async function readConfigTables(): Promise<{ models: Array<{ model:string
   }
 }
 
-export async function writeConfigTables(obj: { models: Array<{ model:string; title:string; status:string }> }) {
+export async function writeCrudTable(obj: { models: Array<{ name: string; fields?: any[] }> }) {
   await ensureDir(OUT_DIR)
   await fs.writeFile(OUT_TABLES, JSON.stringify(obj, null, 2))
 }
 
-export async function upsertConfigTablesEntry(entry: { model:string; title:string; status:string }) {
-  const tables = await readConfigTables()
-  const idx = tables.models.findIndex(m => m.model === entry.model)
-  if (idx >= 0) {
-    tables.models[idx].title = entry.title
-    tables.models[idx].status = entry.status
-  } else {
-    tables.models.push({ model: entry.model, title: entry.title, status: entry.status })
-  }
-  await writeConfigTables(tables)
-}
-
-// Small helper for sync route to read/write raw files if needed
 export const paths = {
-  ROOT, MODELS_DIR, OUT_DIR, OUT_TABLES, OUT_DETAIL, SCHEMA: path.resolve(ROOT, 'prisma/schema.prisma')
+  ROOT, MODELS_DIR, OUT_DIR, OUT_TABLES, SCHEMA: path.resolve(ROOT, 'prisma/schema.prisma')
 }
 
 export function existsSync(p: string) {
-  try {
-    return fssync.existsSync(p)
-  } catch { return false }
+  try { return fssync.existsSync(p) } catch { return false }
 }

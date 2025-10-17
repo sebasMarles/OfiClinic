@@ -25,7 +25,7 @@ function mapPrismaToUiType(prismaType, fieldKey) {
 
 function loadCrudTable() {
   if (!fs.existsSync(CRUD_TABLE)) {
-    console.error('❌ No existe config/crud/crudTable.json. Ejecuta el generador primero.')
+    console.error('No existe config/crud/crudTable.json. Ejecuta el generador primero.')
     process.exit(1)
   }
   try {
@@ -33,7 +33,7 @@ function loadCrudTable() {
     if (!data?.models || !Array.isArray(data.models)) throw new Error('shape inválida')
     return data
   } catch (e) {
-    console.error('❌ No se pudo leer crudTable.json:', e.message)
+    console.error('No se pudo leer crudTable.json:', e.message)
     process.exit(1)
   }
 }
