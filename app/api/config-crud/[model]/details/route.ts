@@ -6,9 +6,9 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(
   _req: Request,
-  ctx: { params: Promise<{ model: string }> }
+  { params }: { params: { model: string } }
 ) {
-  const { model } = await ctx.params;
+  const { model } = params;
 
   try {
     const cfg = await prisma.configCrud.upsert({
@@ -33,6 +33,7 @@ export async function GET(
         hideable: d.hideable ?? false,
         render: (d.render as any) ?? "grid-form",
         listOptions: d.listOptions ?? null,
+        unique: d.unique ?? false,
       })),
     });
   } catch (e) {
@@ -43,9 +44,9 @@ export async function GET(
 
 export async function PUT(
   req: Request,
-  ctx: { params: Promise<{ model: string }> }
+  { params }: { params: { model: string } }
 ) {
-  const { model } = await ctx.params;
+  const { model } = params;
 
   try {
     const body = await req.json();
@@ -62,6 +63,7 @@ export async function PUT(
         hideable: boolean;
         render: "grid" | "form" | "grid-form";
         listOptions: string | null;
+        unique: boolean;
       }>;
     };
 
@@ -90,6 +92,7 @@ export async function PUT(
         hideable: data.hideable,
         render: data.render,
         listOptions: data.listOptions ?? null,
+        unique: data.unique ?? false,
       },
       create: {
         configCrudId: cfg.id,
@@ -104,6 +107,7 @@ export async function PUT(
         hideable: data.hideable ?? false,
         render: data.render ?? "grid-form",
         listOptions: data.listOptions ?? null,
+        unique: data.unique ?? false,
       },
     });
 

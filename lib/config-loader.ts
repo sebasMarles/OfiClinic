@@ -1,7 +1,8 @@
 // lib/config-loader.ts
 import fs from "fs";
 import path from "path";
-import type { TableConfig } from "@/types/table-config";
+import type { TableConfig, ColumnConfig } from "@/types/table-config";
+import { prisma } from "@/lib/prisma";
 
 const ROOT = process.cwd();
 const CRUD_DIR = path.join(ROOT, "config/crud");
@@ -26,7 +27,29 @@ function readModelJson(model: string): any | null {
   return null;
 }
 
-function adaptToTableConfig(seed: any): TableConfig {
+function detailsToColumns(details: any[]): ColumnConfig[] {
+  return (details || []).map((d) => ({
+    key: d.key,
+    title: d.title || d.key,
+    type: d.type || "text",
+    sortable: d.sortable ?? true,
+    filterable: d.filterable ?? true,
+    frozen: d.frozen ?? false,
+    required: d.required ?? false,
+    hidden: d.hidden ?? false,
+    hideable: d.hideable ?? false,
+    render: d.render ?? "grid-form",
+    options: d.listOptions
+      ? String(d.listOptions)
+          .split(",")
+          .map((s: string) => s.trim())
+          .filter(Boolean)
+      : undefined,
+    unique: d.unique ?? false, // importante
+  }));
+}
+
+function adaptSeedToTableConfig(seed: any): TableConfig {
   return {
     model: seed.model,
     title: seed.title || seed.model,
@@ -44,12 +67,47 @@ function adaptToTableConfig(seed: any): TableConfig {
   };
 }
 
+/**
+ * 1) Intenta construir TableConfig desde DB (ConfigCrud + Details).
+ * 2) Si no hay, intenta desde JSON en config/models.
+ * 3) Si tampoco, devuelve null.
+ */
 export async function getTableConfig(
   modelName: string
 ): Promise<TableConfig | null> {
   const slug = (modelName || "").trim();
+  if (!slug) return null;
+
+  // 1) DB
+  const cfg = await prisma.configCrud.findUnique({
+    where: { model: slug },
+    include: { details: true },
+  });
+  if (cfg) {
+    const columns = detailsToColumns(cfg.details || []);
+    return {
+      model: cfg.model,
+      title: cfg.title || cfg.model,
+      description: undefined,
+      columns,
+      rowActions: [],
+      bulkActions: [],
+      enableSelection: cfg.enableSelection ?? true,
+      enableMultiSelection: cfg.enableMultiSelection ?? true,
+      enablePagination: cfg.enablePagination ?? true,
+      pageSize: cfg.pageSize ?? 20,
+      enableSearch: cfg.enableSearch ?? true,
+      searchPlaceholder: cfg.searchPlaceHolder ?? "Search...",
+      enableFilters: cfg.enableFilters ?? true,
+      enableExport: cfg.enableExport ?? true,
+    };
+  }
+
+  // 2) Fallback JSON
   const seed = readModelJson(slug);
-  if (seed) return adaptToTableConfig(seed);
+  if (seed) return adaptSeedToTableConfig(seed);
+
+  // 3) Nada
   return null;
 }
 

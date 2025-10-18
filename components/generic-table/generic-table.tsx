@@ -20,7 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { RowAction, TableConfig } from "@/types/table-config";
 import { ArrowUpDown, Eye, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CellRenderer } from "./cell-renderer";
 import { TablePagination } from "./table-pagination";
 import { TableToolbar } from "./table-toolbar";
@@ -36,6 +36,10 @@ interface GenericTableProps {
   onSearchChange?: (value: string) => void;
   searchValue?: string;
   onBulkAction?: (actionId: string, selectedRows: any[]) => void;
+  // NUEVOS:
+  searchInputId?: string;
+  enableImport?: boolean;
+  onImport?: (rows: Record<string, any>[]) => void;
 }
 
 export function GenericTable({
@@ -49,21 +53,30 @@ export function GenericTable({
   searchValue = "",
   onPageChange,
   onSortChange,
+  searchInputId,
+  enableImport,
+  onImport,
 }: GenericTableProps) {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
-  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
-    new Set(
-      config.columns
-        .filter((col) => !col.hidden && col.render !== "form") // ✅ incluimos también las hideable
-        .map((col) => col.key)
-    )
-  );
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set());
+
+  // Inicializa columnas visibles coherentes
+  useEffect(() => {
+    setVisibleColumns(
+      new Set(
+        config.columns
+          .filter((col) => !col.hidden && col.render !== "form")
+          .map((col) => col.key)
+      )
+    );
+  }, [config.columns]);
 
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(config.pageSize || 10);
 
+  // Filtrar datos según searchValue controlado
   const filteredData = useMemo(() => {
     if (!searchValue) return data;
 
@@ -71,11 +84,14 @@ export function GenericTable({
       return config.columns.some((col) => {
         if (!col.filterable) return false;
         const value = row[col.key];
-        return String(value).toLowerCase().includes(searchValue.toLowerCase());
+        return String(value ?? "")
+          .toLowerCase()
+          .includes(searchValue.toLowerCase());
       });
     });
   }, [data, searchValue, config.columns]);
 
+  // Ordenar datos
   const sortedData = useMemo(() => {
     if (!sortColumn) return filteredData;
 
@@ -90,6 +106,7 @@ export function GenericTable({
     });
   }, [filteredData, sortColumn, sortDirection]);
 
+  // Paginación
   const paginatedData = useMemo(() => {
     if (!config.enablePagination) return sortedData;
 
@@ -97,8 +114,9 @@ export function GenericTable({
     return sortedData.slice(startIndex, startIndex + pageSize);
   }, [sortedData, currentPage, pageSize, config.enablePagination]);
 
-  const totalPages = Math.ceil(sortedData.length / pageSize);
+  const totalPages = Math.ceil(sortedData.length / pageSize) || 1;
 
+  // Manejar ordenamiento
   const handleSort = (columnKey: string) => {
     if (sortColumn === columnKey) {
       const newDirection = sortDirection === "asc" ? "desc" : "asc";
@@ -111,6 +129,7 @@ export function GenericTable({
     }
   };
 
+  // Selección de filas
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
       setSelectedRows(new Set(paginatedData.map((row) => row.id)));
@@ -129,6 +148,7 @@ export function GenericTable({
     setSelectedRows(newSelected);
   };
 
+  // Visibilidad columnas
   const handleColumnVisibilityChange = (columnKey: string) => {
     const newVisible = new Set(visibleColumns);
     if (newVisible.has(columnKey)) {
@@ -139,6 +159,7 @@ export function GenericTable({
     setVisibleColumns(newVisible);
   };
 
+  // Acciones masivas
   const handleBulkAction = (actionId: string) => {
     const selectedData = data.filter((row) => selectedRows.has(row.id));
 
@@ -155,6 +176,7 @@ export function GenericTable({
     }
   };
 
+  // Acciones en fila
   const handleRowAction = (action: RowAction, row: any) => {
     if (action.confirmMessage) {
       if (confirm(action.confirmMessage)) {
@@ -165,6 +187,7 @@ export function GenericTable({
     }
   };
 
+  // Exportar CSV
   const handleExport = () => {
     const selectedData =
       selectedRows.size > 0
@@ -189,6 +212,7 @@ export function GenericTable({
     <div className="space-y-4">
       {config.enableSearch && (
         <TableToolbar
+          inputId={searchInputId}
           searchValue={searchValue}
           onSearchChange={onSearchChange ?? (() => {})}
           searchPlaceholder={config.searchPlaceholder}
@@ -201,6 +225,8 @@ export function GenericTable({
           onAdd={onAdd}
           enableExport={config.enableExport}
           onExport={handleExport}
+          enableImport={enableImport}
+          onImport={onImport}
         />
       )}
 
@@ -423,7 +449,7 @@ function convertToCSV(data: any[], columns: any[]): string {
     columns
       .map((col) => {
         const value = row[col.key];
-        return `"${String(value).replace(/"/g, '""')}"`;
+        return `"${String(value ?? "").replace(/"/g, '""')}"`;
       })
       .join(",")
   );

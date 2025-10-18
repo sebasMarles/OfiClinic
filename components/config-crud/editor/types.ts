@@ -37,6 +37,7 @@ export type Detail = {
   hideable?: boolean;
   render?: "grid" | "form" | "grid-form" | null;
   listOptions?: string | null;
+  unique?: boolean; // NUEVO
 };
 export type DetailsResp = { model: string; details: Detail[] };
 
@@ -61,5 +62,6 @@ export function defaultDetailFor(key: KeyItem): Detail {
     hideable: false,
     render: "grid-form",
     listOptions: null,
+    unique: false,
   };
 }

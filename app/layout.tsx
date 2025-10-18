@@ -1,23 +1,35 @@
-import "./globals.css";
-import '@/lib/zod-locale'
 import type { Metadata } from "next";
-import Providers from "@/components/ui/providers";
-import Navbar from "@/components/ui/layout/Navbar";
+import "./globals.css";
+import RootProviders from "@/components/provider/RootProviders";
+import HeaderBar from "@/components/ui/headerBar";
 
 export const metadata: Metadata = {
-  title: "OfiClinic",
-  description: "Plataforma base OfiClinic (Next.js + Prisma + shadcn + Query)",
+  title: "Oficlinic",
+  description: "Panel de gestión",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  // TODO: Reemplazar por lecturas reales (auth/cookies/db)
+  const userName = "Usuario";
+  const clientName = "—";
+  const siteName = "—";
+
   return (
     <html lang="es" suppressHydrationWarning>
-      <body className="bg-gray-50 dark:bg-neutral-950">
-        {/* Barra de navegación global */}
-        <Navbar />
-
-        {/* Providers + contenido */}
-        <Providers>{children}</Providers>
+      <body className="min-h-screen bg-background text-foreground">
+        <RootProviders>
+          {/* Header global: usuario + cliente/sede + toggle de tema */}
+          <HeaderBar
+            userName={userName}
+            clientName={clientName}
+            siteName={siteName}
+          />
+          {children}
+        </RootProviders>
       </body>
     </html>
   );

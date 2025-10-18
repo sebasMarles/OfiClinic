@@ -18,7 +18,6 @@ model Tariff {
   updatedAt DateTime @updatedAt
 }
 
-
 /// @crud
 model Recipes {
   id          String   @id @default(cuid())
@@ -164,6 +163,7 @@ model ConfigCrudDetail {
   hideable    Boolean? @default(false)
   render      String? // grid|form|grid-form
   listOptions String?  @map("list_options")
+  unique      Boolean? @default(false) // NUEVO
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

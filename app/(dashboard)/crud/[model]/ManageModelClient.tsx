@@ -1,7 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
 import { GenericTable } from "@/components/generic-table/generic-table";
 import { DynamicForm } from "@/components/generic-table/dynamic-form";
 import type {
@@ -10,6 +9,7 @@ import type {
   RowAction as RowActionCfg,
   BulkAction as BulkActionCfg,
 } from "@/types/table-config";
+import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 
 type Meta = {
@@ -24,8 +24,8 @@ type Meta = {
   enableFilters?: boolean;
   enableExport?: boolean;
   relations?: string[];
-  bulkActions?: string[];
-  rowActions?: string[];
+  bulkActions?: string[]; // ["delete","export"]
+  rowActions?: string[]; // ["edit","delete"]
 };
 
 type KeyItem = {
@@ -37,7 +37,7 @@ type KeysResp = { model: string; keys: KeyItem[] };
 
 type Detail = {
   key: string;
-  type: string;
+  type: string; // text|textarea|email|number|currency|boolean|date|select|badge
   title: string;
   sortable?: boolean;
   filterable?: boolean;
@@ -46,12 +46,14 @@ type Detail = {
   hidden?: boolean;
   hideable?: boolean;
   render?: "grid" | "form" | "grid-form" | null;
-  listOptions?: string | null;
+  listOptions?: string | null; // CSV
+  unique?: boolean;
 };
 type DetailsResp = { model: string; details: Detail[] };
 
 type Row = Record<string, any> & { id: string };
 
+// helpers
 const UI_TYPES_BY_BASE: Record<KeyItem["baseType"], string[]> = {
   String: ["text", "textarea", "email", "select", "badge"],
   Number: ["number", "currency"],
@@ -73,6 +75,7 @@ function defaultDetailFor(k: KeyItem): Detail {
     hideable: false,
     render: "grid-form",
     listOptions: null,
+    unique: false,
   };
 }
 
@@ -105,6 +108,7 @@ function mapMetaToActions(meta?: Meta) {
         icon: "eye",
         variant: "ghost" as const,
       };
+    // por defecto: acción genérica
     return { id, label: id, action: id as any, variant: "outline" as const };
   });
 
@@ -152,134 +156,108 @@ function detailsToColumns(details: Detail[]): ColumnConfig[] {
           .map((s) => s.trim())
           .filter(Boolean)
       : undefined,
+    unique: !!d.unique,
   }));
 }
 
 export default function ManageModelClient({ model }: { model: string }) {
-  const qc = useQueryClient();
+  // config
+  const [meta, setMeta] = useState<Meta | null>(null);
+  const [details, setDetails] = useState<Detail[]>([]);
+  const [loadingCfg, setLoadingCfg] = useState(true);
 
-  // state sólo para el buscador controlado del toolbar
+  // datos
+  const [rows, setRows] = useState<Row[]>([]);
+  const [loadingRows, setLoadingRows] = useState(true);
+
+  // búsqueda controlada
   const [search, setSearch] = useState("");
 
-  // CONFIG (meta/keys/details) via React Query
-  const metaQ = useQuery<Meta>({
-    queryKey: ["crud", "meta", model],
-    queryFn: async () => {
-      const r = await fetch(`/api/config-crud/${model}/meta`, {
-        cache: "no-store",
-      });
-      if (!r.ok) throw new Error("meta_failed");
-      return r.json();
-    },
-  });
-
-  const keysQ = useQuery<KeysResp>({
-    queryKey: ["crud", "keys", model],
-    queryFn: async () => {
-      const r = await fetch(`/api/config-crud/${model}/keys`, {
-        cache: "no-store",
-      });
-      if (!r.ok) throw new Error("keys_failed");
-      return r.json();
-    },
-  });
-
-  const detailsQ = useQuery<DetailsResp>({
-    queryKey: ["crud", "details", model],
-    queryFn: async () => {
-      const r = await fetch(`/api/config-crud/${model}/details`, {
-        cache: "no-store",
-      });
-      if (!r.ok) throw new Error("details_failed");
-      return r.json();
-    },
-  });
-
-  // DATA via React Query (modo client-side: traemos un bloque razonable)
-  const rowsQ = useQuery<{ data: Row[] }>({
-    queryKey: ["crud", model, { take: 500 }],
-    queryFn: async () => {
-      const r = await fetch(`/api/crud/${model}?take=500`, {
-        cache: "no-store",
-      });
-      if (!r.ok) throw new Error("list_failed");
-      return r.json();
-    },
-  });
-
-  // Mutations
-  const createMut = useMutation({
-    mutationFn: async (data: any) => {
-      const r = await fetch(`/api/crud/${model}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!r.ok) throw new Error("create_failed");
-      return r.json();
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["crud", model] }),
-  });
-
-  const updateMut = useMutation({
-    mutationFn: async (payload: { id: string; data: any }) => {
-      const r = await fetch(`/api/crud/${model}/${payload.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload.data),
-      });
-      if (!r.ok) throw new Error("update_failed");
-      return r.json();
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["crud", model] }),
-  });
-
-  const deleteMut = useMutation({
-    mutationFn: async (id: string) => {
-      const r = await fetch(`/api/crud/${model}/${id}`, { method: "DELETE" });
-      if (!r.ok) throw new Error("delete_failed");
-      return r.json();
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["crud", model] }),
-  });
-
-  // Form
+  // forms
   const [openForm, setOpenForm] = useState(false);
   const [editRecord, setEditRecord] = useState<Row | null>(null);
 
-  // Construir config tabla
+  // id del input para atajos ('/')
+  const searchInputId = `table-search-${model.toLowerCase()}`;
+
+  // cargar configuración (meta + keys + details)
+  useEffect(() => {
+    (async () => {
+      setLoadingCfg(true);
+      try {
+        const [m, k, d] = await Promise.all([
+          fetch(`/api/config-crud/${model}/meta`, { cache: "no-store" }),
+          fetch(`/api/config-crud/${model}/keys`, { cache: "no-store" }),
+          fetch(`/api/config-crud/${model}/details`, { cache: "no-store" }),
+        ]);
+        const metaJ: Meta = await m.json();
+        const keysJ: KeysResp = await k.json();
+        const detJ: DetailsResp = await d.json();
+
+        // merge keys + details guardados para asegurar 1:1
+        const map = new Map<string, Detail>();
+        (detJ.details || []).forEach((dd) => map.set(dd.key, dd));
+        const merged: Detail[] = (keysJ.keys || []).map(
+          (kk) => map.get(kk.key) ?? defaultDetailFor(kk)
+        );
+
+        setMeta(metaJ);
+        setDetails(merged);
+      } catch (e) {
+        console.error("load config failed", e);
+        setMeta(null);
+        setDetails([]);
+      } finally {
+        setLoadingCfg(false);
+      }
+    })();
+  }, [model]);
+
+  // cargar datos
+  async function loadRows() {
+    setLoadingRows(true);
+    try {
+      const r = await fetch(`/api/crud/${model}?take=500`, {
+        cache: "no-store",
+      });
+      const j = await r.json();
+      setRows(Array.isArray(j?.data) ? j.data : []);
+    } catch (e) {
+      console.error("load rows failed", e);
+      setRows([]);
+    } finally {
+      setLoadingRows(false);
+    }
+  }
+  useEffect(() => {
+    loadRows();
+  }, [model]);
+
+  // config para GenericTable
   const tableConfig: TableConfig | null = useMemo(() => {
-    if (!metaQ.data || !keysQ.data || !detailsQ.data) return null;
-
-    // merge keys + details para asegurar 1:1
-    const map = new Map<string, Detail>();
-    (detailsQ.data.details || []).forEach((dd) => map.set(dd.key, dd));
-    const merged: Detail[] = (keysQ.data.keys || []).map(
-      (kk) => map.get(kk.key) ?? defaultDetailFor(kk)
-    );
-
-    const cols = detailsToColumns(merged);
-    const actions = mapMetaToActions(metaQ.data);
+    if (!meta) return null;
+    const cols = detailsToColumns(details);
+    const actions = mapMetaToActions(meta);
 
     return {
       model: model.toLowerCase(),
-      title: metaQ.data.title || model,
+      title: meta.title || model,
       description: undefined,
       columns: cols,
       rowActions: actions.row,
       bulkActions: actions.bulk,
-      enableSelection: metaQ.data.enableSelection ?? true,
-      enableMultiSelection: metaQ.data.enableMultiSelection ?? true,
-      enablePagination: metaQ.data.enablePagination ?? true,
-      pageSize: metaQ.data.pageSize ?? 10,
-      enableSearch: metaQ.data.enableSearch ?? true,
-      searchPlaceholder: metaQ.data.searchPlaceHolder ?? "Search...",
-      enableFilters: metaQ.data.enableFilters ?? true,
-      enableExport: metaQ.data.enableExport ?? true,
+      enableSelection: meta.enableSelection ?? true,
+      enableMultiSelection: meta.enableMultiSelection ?? true,
+      enablePagination: meta.enablePagination ?? true,
+      pageSize: meta.pageSize ?? 10,
+      enableSearch: meta.enableSearch ?? true,
+      searchPlaceholder: meta.searchPlaceHolder ?? "Search...",
+      enableFilters: meta.enableFilters ?? true,
+      enableExport: meta.enableExport ?? true,
     };
-  }, [metaQ.data, keysQ.data, detailsQ.data, model]);
+  }, [meta, details, model]);
 
-  // Handlers
+  // handlers tabla
   const handleRowAction = async (action: string, row: Row) => {
     if (action === "edit") {
       setEditRecord(row);
@@ -288,7 +266,8 @@ export default function ManageModelClient({ model }: { model: string }) {
     }
     if (action === "delete") {
       if (!confirm("¿Eliminar este registro?")) return;
-      await deleteMut.mutateAsync(row.id);
+      await fetch(`/api/crud/${model}/${row.id}`, { method: "DELETE" });
+      await loadRows();
       return;
     }
     if (action === "view") {
@@ -299,11 +278,13 @@ export default function ManageModelClient({ model }: { model: string }) {
 
   const handleBulkAction = async (actionId: string, selectedRows: Row[]) => {
     if (actionId === "delete") {
-      if (!confirm("¿Eliminar registros seleccionados?")) return;
-      await Promise.all(selectedRows.map((r) => deleteMut.mutateAsync(r.id)));
+      for (const r of selectedRows) {
+        await fetch(`/api/crud/${model}/${r.id}`, { method: "DELETE" });
+      }
+      await loadRows();
       return;
     }
-    // export lo maneja GenericTable
+    // "export" lo maneja GenericTable con onExport, no llega aquí
   };
 
   const handleAdd = () => {
@@ -311,15 +292,82 @@ export default function ManageModelClient({ model }: { model: string }) {
     setOpenForm(true);
   };
 
-  const handleSubmitForm = async (data: any) => {
-    if (editRecord) {
-      await updateMut.mutateAsync({ id: editRecord.id, data });
-    } else {
-      await createMut.mutateAsync(data);
+  // IMPORT CSV
+  const handleImport = async (rows: Record<string, any>[]) => {
+    for (const row of rows) {
+      try {
+        await fetch(`/api/crud/${model}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(row),
+        });
+      } catch (e) {
+        console.error("import failed row:", row, e);
+      }
     }
+    await loadRows();
   };
 
-  if (metaQ.isLoading || keysQ.isLoading || detailsQ.isLoading) {
+  // submit del formulario (create / update)
+  const handleSubmitForm = async (data: any) => {
+    if (editRecord) {
+      const res = await fetch(`/api/crud/${model}/${editRecord.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.status === 409) {
+        const j = await res.json().catch(() => ({} as any));
+        alert(j?.error || "Conflicto de unicidad");
+        return;
+      }
+    } else {
+      const res = await fetch(`/api/crud/${model}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.status === 409) {
+        const j = await res.json().catch(() => ({} as any));
+        alert(j?.error || "Conflicto de unicidad");
+        return;
+      }
+    }
+    await loadRows();
+  };
+
+  // ---- Atajos de teclado: '/', 'n', 'Escape' ----
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // Si el foco está en un input/textarea, evita algunos atajos
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      const inEditable =
+        tag === "input" ||
+        tag === "textarea" ||
+        (e.target as HTMLElement)?.isContentEditable;
+
+      if (e.key === "/" && !inEditable) {
+        e.preventDefault();
+        const elt = document.getElementById(
+          searchInputId
+        ) as HTMLInputElement | null;
+        elt?.focus();
+      }
+
+      if (e.key.toLowerCase() === "n" && !inEditable) {
+        e.preventDefault();
+        handleAdd();
+      }
+
+      if (e.key === "Escape" && openForm) {
+        setOpenForm(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [openForm, searchInputId]);
+
+  if (loadingCfg || !tableConfig) {
     return (
       <div className="flex items-center gap-2 text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
@@ -328,23 +376,12 @@ export default function ManageModelClient({ model }: { model: string }) {
     );
   }
 
-  if (!tableConfig || rowsQ.isLoading) {
-    return (
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Cargando datos…
-      </div>
-    );
-  }
-
-  const rows = Array.isArray(rowsQ.data?.data) ? rowsQ.data!.data : [];
-
   return (
     <div className="space-y-4">
       <GenericTable
         config={tableConfig}
         data={rows}
-        isLoading={rowsQ.isLoading}
+        isLoading={loadingRows}
         onRowAction={handleRowAction}
         onBulkAction={handleBulkAction}
         onAdd={handleAdd}
@@ -352,8 +389,12 @@ export default function ManageModelClient({ model }: { model: string }) {
         onSortChange={() => {}}
         searchValue={search}
         onSearchChange={setSearch}
+        searchInputId={searchInputId}
+        enableImport={true}
+        onImport={handleImport}
       />
 
+      {/* Formulario (create / edit) */}
       <DynamicForm
         open={openForm}
         onOpenChange={setOpenForm}

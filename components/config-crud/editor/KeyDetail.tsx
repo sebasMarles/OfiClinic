@@ -31,15 +31,15 @@ export default function KeyDetail({
 }: Props) {
   if (!detail)
     return (
-      <div className="md:col-span-3 border rounded p-3">
+      <div className="md:col-span-3 border rounded p-4">
         Selecciona un campo.
       </div>
     );
 
   return (
-    <div className="md:col-span-3 border rounded p-3">
-      <div className="space-y-3">
-        <div>
+    <div className="md:col-span-3 border rounded p-4 space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
           <Label>Key</Label>
           <Input
             value={detail.key}
@@ -48,7 +48,7 @@ export default function KeyDetail({
           />
         </div>
 
-        <div>
+        <div className="space-y-2">
           <Label>Título</Label>
           <Input
             value={detail.title}
@@ -56,7 +56,7 @@ export default function KeyDetail({
           />
         </div>
 
-        <div>
+        <div className="space-y-2">
           <Label>Tipo UI</Label>
           {allowedTypes.length === 1 ? (
             <Input
@@ -83,31 +83,7 @@ export default function KeyDetail({
           )}
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-          {(
-            [
-              ["sortable", "sortable"],
-              ["filterable", "filterable"],
-              ["frozen", "frozen"],
-              ["required", "required"],
-              ["hidden", "hidden"],
-              ["hideable", "hideable"],
-            ] as const
-          ).map(([k, label]) => (
-            <label key={k} className="text-sm flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={!!(detail as any)[k]}
-                onChange={(e) =>
-                  onChange({ ...detail, [k]: e.target.checked } as any)
-                }
-              />
-              {label}
-            </label>
-          ))}
-        </div>
-
-        <div>
+        <div className="space-y-2">
           <Label>Render</Label>
           <Select
             value={detail.render ?? "grid-form"}
@@ -123,23 +99,47 @@ export default function KeyDetail({
             </SelectContent>
           </Select>
         </div>
+      </div>
 
-        <div>
-          <Label>Opciones (solo select/badge) — CSV</Label>
-          <Textarea
-            value={detail.listOptions ?? ""}
-            onChange={(e) =>
-              onChange({ ...detail, listOptions: e.target.value })
-            }
-            placeholder="Activo,Inactivo,En revisión…"
-          />
-        </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {(
+          [
+            ["sortable", "sortable"],
+            ["filterable", "filterable"],
+            ["frozen", "frozen"],
+            ["required", "required"],
+            ["hidden", "hidden"],
+            ["hideable", "hideable"],
+            ["unique", "unique"], // NUEVO
+          ] as const
+        ).map(([k, label]) => (
+          <label key={k} className="text-sm flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={!!(detail as any)[k]}
+              onChange={(e) =>
+                onChange({ ...detail, [k]: e.target.checked } as any)
+              }
+            />
+            {label}
+          </label>
+        ))}
+      </div>
 
-        <div className="flex justify-end">
-          <Button onClick={onSave} disabled={saving}>
-            {saving ? "Guardando…" : "Guardar campo"}
-          </Button>
-        </div>
+      <div className="space-y-2">
+        <Label>Opciones (solo select/badge) — CSV</Label>
+        <Textarea
+          value={detail.listOptions ?? ""}
+          onChange={(e) => onChange({ ...detail, listOptions: e.target.value })}
+          placeholder="Activo,Inactivo,En revisión…"
+          rows={3}
+        />
+      </div>
+
+      <div className="flex justify-end">
+        <Button onClick={onSave} disabled={saving}>
+          {saving ? "Guardando…" : "Guardar campo"}
+        </Button>
       </div>
     </div>
   );

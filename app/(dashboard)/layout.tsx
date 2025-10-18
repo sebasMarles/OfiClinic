@@ -8,9 +8,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       <Sidebar />
 
       {/* Contenido principal */}
-      <main className="pl-68 p-6 overflow-y-auto min-h-screen">
-        {children}
-      </main>
+      <main className="pl-68 p-6 overflow-y-auto min-h-screen">{children}</main>
     </div>
   );
 }

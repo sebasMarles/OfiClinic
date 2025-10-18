@@ -1,7 +1,7 @@
 // components/config-crud/CrudConfigEditor.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import MetaHeader from "./editor/MetaHeader";
@@ -22,6 +22,14 @@ import {
   type Detail,
 } from "./editor/types";
 
+function shallowEqual(a: any, b: any) {
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
+}
+
 export default function CrudConfigEditor({ model }: { model: string }) {
   // Data fetching
   const metaQ = useMeta(model);
@@ -37,7 +45,7 @@ export default function CrudConfigEditor({ model }: { model: string }) {
   const saveMeta = useSaveMeta(model);
   const saveDetail = useSaveDetail(model);
 
-  // hydrate meta draft
+  // Hydrate meta draft
   useEffect(() => {
     if (metaQ.data) setMetaDraft(metaQ.data);
   }, [metaQ.data]);
@@ -60,6 +68,55 @@ export default function CrudConfigEditor({ model }: { model: string }) {
       if (k) setDetailDraft(defaultDetailFor(k));
     }
   }, [selectedKey, detailsQ.data, keysQ.data]);
+
+  // ----- Unsaved changes guard (beforeunload) -----
+  const originalMeta = metaQ.data;
+  const originalDetail = useMemo(
+    () => detailsQ.data?.details?.find((x) => x.key === selectedKey) || null,
+    [detailsQ.data, selectedKey]
+  );
+
+  const isDirty = useMemo(() => {
+    const metaChanged = !!(
+      originalMeta &&
+      metaDraft &&
+      !shallowEqual(originalMeta, metaDraft)
+    );
+    const detailChanged = !!(
+      originalDetail &&
+      detailDraft &&
+      !shallowEqual(originalDetail, detailDraft)
+    );
+    // si detailDraft existe pero no existe en DB (nuevo) y no igual al default => también dirty
+    const newDetailDirty =
+      detailDraft &&
+      !originalDetail &&
+      !!keysQ.data?.keys?.find((k) => k.key === selectedKey) &&
+      !shallowEqual(
+        detailDraft,
+        defaultDetailFor(keysQ.data!.keys!.find((k) => k.key === selectedKey)!)
+      );
+
+    return metaChanged || detailChanged || !!newDetailDirty;
+  }, [
+    originalMeta,
+    metaDraft,
+    originalDetail,
+    detailDraft,
+    keysQ.data,
+    selectedKey,
+  ]);
+
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
 
   if (metaQ.isLoading || keysQ.isLoading || detailsQ.isLoading)
     return <div>Cargando…</div>;
@@ -120,6 +177,7 @@ export default function CrudConfigEditor({ model }: { model: string }) {
                   hideable: !!detailDraft.hideable,
                   render: detailDraft.render ?? "grid-form",
                   listOptions: detailDraft.listOptions ?? null,
+                  unique: !!detailDraft.unique,
                 },
               },
               {

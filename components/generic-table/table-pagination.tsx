@@ -49,7 +49,7 @@ export function TablePagination({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="3">3</SelectItem>
+              <SelectItem value="5">5</SelectItem>
               <SelectItem value="10">10</SelectItem>
               <SelectItem value="20">20</SelectItem>
               <SelectItem value="50">50</SelectItem>
@@ -59,7 +59,8 @@ export function TablePagination({
         </div>
 
         <p className="text-sm text-muted-foreground">
-          Showing {startItem} to {endItem} of {totalItems} results
+          Showing {Math.min(startItem, totalItems)} to {endItem} of {totalItems}{" "}
+          results
         </p>
       </div>
 
@@ -83,7 +84,7 @@ export function TablePagination({
 
         <div className="flex items-center gap-1">
           <span className="text-sm font-medium">
-            Page {currentPage} of {totalPages}
+            Page {totalPages ? currentPage : 1} of {totalPages || 1}
           </span>
         </div>
 
