@@ -1,130 +1,73 @@
 // app/api/crud/[model]/route.ts
-import type { NextRequest } from 'next/server'
-import { NextResponse } from 'next/server'
-import { getUseCasesFor } from '@/lib/di'
-import { getTableConfig } from '@/lib/config-loader'
-import { schemaFromConfig } from '@/domain/validation/schema-from-config'
-import type { TableConfig } from '@/types/table-config'
+export const runtime = "nodejs";
 
-function coercePayloadByConfig(payload: any, cfg: TableConfig) {
-  const out: any = {}
-  for (const col of cfg.columns) {
-    const k = col.key
-    if (!(k in payload)) continue
-    const v = payload[k]
+import { NextResponse } from "next/server";
+import { getUseCasesFor } from "@/lib/di";
 
-    switch (col.type) {
-      case 'number':
-      case 'currency': {
-        if (v === '' || v === null || v === undefined) out[k] = undefined
-        else {
-          const n = Number(v)
-          out[k] = Number.isFinite(n) ? n : undefined
-        }
-        break
-      }
-      case 'boolean': {
-        if (typeof v === 'boolean') out[k] = v
-        else if (typeof v === 'string') out[k] = v.toLowerCase() === 'true'
-        else out[k] = Boolean(v)
-        break
-      }
-      case 'date': {
-        if (!v) { out[k] = undefined; break }
-        if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
-          out[k] = new Date(v + 'T00:00:00.000Z')
-        } else {
-          const d = new Date(v)
-          out[k] = Number.isNaN(d.getTime()) ? undefined : d
-        }
-        break
-      }
-      case 'text':
-      case 'email':
-      case 'select':
-      case 'badge': {
-        out[k] = v == null ? '' : String(v)
-        break
-      }
-      default: out[k] = v
-    }
-  }
-  return out
-}
-
+/**
+ * Lista con paginación/orden/búsqueda.
+ * Devuelve shape compatible con useFetchItems(): { data, pagination }
+ */
 export async function GET(
-  request: NextRequest,
-  context: { params: Promise<{ model: string }> },
+  req: Request,
+  ctx: { params: Promise<{ model: string }> }
 ) {
-  const { model } = await context.params
-  const slug = (model || '').toLowerCase()
-
-  const { searchParams } = new URL(request.url)
-  const page = Number(searchParams.get('page') ?? '1')
-  const pageSize = Number(searchParams.get('pageSize') ?? '10')
-  const search = searchParams.get('search') ?? ''
-  const sortBy = searchParams.get('sortBy') ?? 'createdAt'
-  const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') ?? 'desc'
+  const { model } = await ctx.params;
+  const slug = (model || "").toLowerCase();
 
   try {
-    const uc = getUseCasesFor(slug)
-    const result = await uc.list({ page, pageSize, search, sortBy, sortOrder })
-    return NextResponse.json(result)
+    const url = new URL(req.url);
+
+    // Parámetros soportados
+    const page = Number(url.searchParams.get("page") || "1");
+    // soporte "pageSize" y "take" (algunas vistas piden take=500)
+    const pageSize = Number(
+      url.searchParams.get("pageSize") || url.searchParams.get("take") || "10"
+    );
+    const search = url.searchParams.get("search") || "";
+    const sortBy = url.searchParams.get("sortBy") || undefined;
+    const sortOrder =
+      (url.searchParams.get("sortOrder") as "asc" | "desc" | null) || undefined;
+
+    const uc = getUseCasesFor(slug);
+    const { data, total } = await uc.list({
+      page,
+      pageSize,
+      search,
+      sortBy,
+      sortOrder,
+    });
+
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+    return NextResponse.json({
+      data,
+      pagination: { page, pageSize, total, totalPages },
+    });
   } catch (e) {
-    console.error('API GET list error:', e)
-    return NextResponse.json({ error: 'Failed to fetch data' }, { status: 500 })
+    console.error("[CRUD GET]", e);
+    return NextResponse.json({ error: "list_failed" }, { status: 500 });
   }
 }
 
+/**
+ * Crear registro.
+ * Devuelve shape { data } compatible con useCreateItem().
+ */
 export async function POST(
-  request: NextRequest,
-  context: { params: Promise<{ model: string }> },
+  req: Request,
+  ctx: { params: Promise<{ model: string }> }
 ) {
-  const { model } = await context.params
-  const slug = (model || '').toLowerCase()
+  const { model } = await ctx.params;
+  const slug = (model || "").toLowerCase();
 
   try {
-    const body = await request.json()
-    const cfg = await getTableConfig(slug)
-    if (!cfg) return NextResponse.json({ error: `No hay configuración para ${slug}` }, { status: 400 })
-
-    const prepped = coercePayloadByConfig(body, cfg)
-    const schema = schemaFromConfig(cfg)
-    const parsed = schema.parse(prepped)
-
-    const uc = getUseCasesFor(slug)
-    for (const col of cfg.columns.filter(c => c.unique)) {
-      const val = (parsed as any)[col.key]
-      if (val !== undefined && val !== null && String(val) !== '') {
-        const exists = await uc.existsByField(col.key, val)
-        if (exists) {
-          return NextResponse.json(
-            { error: 'Validación fallida', details: [{ field: col.key, message: `${col.title} ya está en uso` }] },
-            { status: 400 },
-          )
-        }
-      }
-    }
-
-    const created = await uc.create(parsed)
-    return NextResponse.json({ data: created }, { status: 201 })
-  } catch (err: any) {
-    if (err?.issues) {
-      const details = err.issues.map((i: any) => ({
-        field: String(i.path?.[0] ?? ''),
-        message: i.message,
-      }))
-      return NextResponse.json({ error: 'Validación fallida', details }, { status: 400 })
-    }
-    if (err?.code === 'P2002') {
-      const targets = Array.isArray(err?.meta?.target) ? err.meta.target : [err?.meta?.target].filter(Boolean)
-      const details = (targets as string[]).map((t: string) => ({
-        field: t,
-        message: `Ya existe un registro con el mismo valor de ${t}`,
-      }))
-      return NextResponse.json({ error: 'Validación fallida', details }, { status: 400 })
-    }
-    console.error('API POST error:', err)
-    return NextResponse.json({ error: 'Failed to create record' }, { status: 500 })
+    const body = await req.json();
+    const uc = getUseCasesFor(slug);
+    const created = await uc.create(body);
+    return NextResponse.json({ data: created });
+  } catch (e) {
+    console.error("[CRUD POST]", e);
+    return NextResponse.json({ error: "create_failed" }, { status: 500 });
   }
 }

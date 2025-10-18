@@ -1,24 +1,18 @@
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { getTableConfig } from '@/lib/config-loader'
-import { CrudPageClient } from './page.client'
+// app/(dashboard)/crud/[model]/page.tsx
+export const runtime = "nodejs";
 
+import ManageModelClient from "./ManageModelClient";
 
-export default async function CrudPage({ params }: { params: Promise<{ model: string }> }) {
-  const { model } = await params
-  const config = await getTableConfig(model)
-
-  if (!config) {
-    return (
-      <div className="container mx-auto py-10">
-        <Card>
-          <CardHeader>
-            <CardTitle>Modelo no encontrado</CardTitle>
-            <CardDescription>El modelo "{model}" no tiene configuración (estática ni dinámica).</CardDescription>
-          </CardHeader>
-        </Card>
-      </div>
-    )
-  }
-
-  return <CrudPageClient config={config} model={model.toLowerCase()} />
+export default async function ManageModelPage({
+  params,
+}: {
+  params: Promise<{ model: string }>;
+}) {
+  const { model } = await params;
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold">Gestionar: {model}</h2>
+      <ManageModelClient model={model} />
+    </div>
+  );
 }

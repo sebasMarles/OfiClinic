@@ -166,6 +166,46 @@
       ]
     },
     {
+      "name": "Prueba",
+      "fields": [
+        {
+          "key": "code",
+          "type": "String",
+          "required": false
+        },
+        {
+          "key": "description",
+          "type": "String",
+          "required": false
+        },
+        {
+          "key": "active",
+          "type": "Boolean",
+          "required": false
+        }
+      ]
+    },
+    {
+      "name": "Prueba2",
+      "fields": [
+        {
+          "key": "code",
+          "type": "String",
+          "required": false
+        },
+        {
+          "key": "description",
+          "type": "String",
+          "required": false
+        },
+        {
+          "key": "active",
+          "type": "Boolean",
+          "required": false
+        }
+      ]
+    },
+    {
       "name": "ClinicalHistory",
       "fields": [
         {
@@ -202,6 +242,51 @@
           "key": "professional",
           "type": "String",
           "required": false
+        }
+      ]
+    },
+    {
+      "name": "Appointment",
+      "fields": [
+        {
+          "key": "professionalId",
+          "type": "String",
+          "required": true
+        },
+        {
+          "key": "patientId",
+          "type": "String",
+          "required": true
+        },
+        {
+          "key": "startsAt",
+          "type": "DateTime",
+          "required": true
+        },
+        {
+          "key": "endsAt",
+          "type": "DateTime",
+          "required": true
+        },
+        {
+          "key": "status",
+          "type": "String",
+          "required": true
+        },
+        {
+          "key": "notes",
+          "type": "String",
+          "required": false
+        },
+        {
+          "key": "professional",
+          "type": "String",
+          "required": true
+        },
+        {
+          "key": "patient",
+          "type": "String",
+          "required": true
         }
       ]
     }

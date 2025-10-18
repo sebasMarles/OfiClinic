@@ -1,4 +1,10 @@
 // app/(dashboard)/config-crud/page.tsx
-export default function Page() {
-  return <div style={{padding: 24}}>OK /config-crud</div>
+import CrudConfigGrid from "@/components/config-crud/CrudConfigGrid";
+
+export default function ConfigCrudPage() {
+  return (
+    <div className="space-y-6">
+      <CrudConfigGrid />
+    </div>
+  );
 }

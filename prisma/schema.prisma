@@ -18,6 +18,7 @@ model Tariff {
   updatedAt DateTime @updatedAt
 }
 
+
 /// @crud
 model Recipes {
   id          String   @id @default(cuid())
@@ -121,7 +122,7 @@ model Appointment {
   @@index([patientId, startsAt])
 }
 
-model configCrud {
+model ConfigCrud {
   id                   String   @id @default(cuid())
   model                String   @unique
   title                String
@@ -133,33 +134,40 @@ model configCrud {
   searchPlaceHolder    String?  @default("Search...") @map("search_place_holder")
   enableFilters        Boolean? @default(true) @map("enable_filters")
   enableExport         Boolean? @default(true) @map("enable_export")
-  relations            String[] @default([]) //solo se hace referencia al nombre del modelo
-  bulkActions          String[] @default([]) @map("bulk_actions") //delete, export
-  rowActions           String[] @default([]) @map("row_actions") //edit,
+  relations            String[] @default([])
+  bulkActions          String[] @default([]) @map("bulk_actions")
+  rowActions           String[] @default([]) @map("row_actions")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  configCrudDetail configCrudDetail[]
+  details ConfigCrudDetail[]
 }
 
-model configCrudDetail {
-  id           String   @id @default(cuid())
-  configCrudId String   @map("config_crud_id")
-  type         String //string, number, boolean, date, datetime, relation
-  title        String
-  sortable     Boolean? @default(true)
-  filterable   Boolean? @default(true)
-  frozen       Boolean? @default(false)
-  required     Boolean? @default(false)
-  hidden       Boolean? @default(false)
-  hideable     Boolean? @default(false)
-  render       String? //grid, form y grid-form
-  listOptions  String?  @map("list_options")
+model ConfigCrudDetail {
+  id String @id @default(cuid())
+
+  // vínculo
+  configCrudId String     @map("config_crud_id")
+  configCrud   ConfigCrud @relation(fields: [configCrudId], references: [id], onDelete: Cascade)
+
+  // clave del campo (match CRUDTable.json) — READ ONLY en UI
+  key String
+
+  // metadatos
+  type        String // text|textarea|email|number|currency|boolean|date|select|badge (compatible con base)
+  title       String
+  sortable    Boolean? @default(true)
+  filterable  Boolean? @default(true)
+  frozen      Boolean? @default(false)
+  required    Boolean? @default(false)
+  hidden      Boolean? @default(false)
+  hideable    Boolean? @default(false)
+  render      String? // grid|form|grid-form
+  listOptions String?  @map("list_options")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  configCrud configCrud @relation(fields: [configCrudId], references: [id], onDelete: Cascade)
-
+  @@unique([configCrudId, key])
   @@index([configCrudId])
 }

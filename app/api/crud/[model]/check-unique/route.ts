@@ -1,39 +1,35 @@
 // app/api/crud/[model]/check-unique/route.ts
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
-import { getTableConfig } from '@/lib/config-loader'
-import { getUseCasesFor } from '@/lib/di'
+export const runtime = "nodejs";
 
+import { NextResponse } from "next/server";
+import { getUseCasesFor } from "@/lib/di";
+
+/**
+ * Verifica unicidad de un campo: GET ?field=...&value=...&excludeId=...
+ * Respuesta: { exists: boolean }
+ */
 export async function GET(
-  request: NextRequest,
-  context: { params: Promise<{ model: string }> },
+  req: Request,
+  ctx: { params: Promise<{ model: string }> }
 ) {
-  const { model } = await context.params
-  const slug = (model || '').toLowerCase()
-
-  const { searchParams } = new URL(request.url)
-  const field = searchParams.get('field') || ''
-  const value = searchParams.get('value')
-  const excludeId = searchParams.get('excludeId') || undefined
-
-  if (!field || value == null) {
-    return NextResponse.json({ error: 'Parámetros inválidos' }, { status: 400 })
-  }
-
-  const cfg = await getTableConfig(slug)
-  if (!cfg) return NextResponse.json({ error: `No hay configuración para ${slug}` }, { status: 400 })
-
-  const col = cfg.columns.find(c => c.key === field)
-  if (!col || !col.unique) {
-    return NextResponse.json({ error: `El campo ${field} no es único o no existe` }, { status: 400 })
-  }
+  const { model } = await ctx.params;
+  const slug = (model || "").toLowerCase();
 
   try {
-    const uc = getUseCasesFor(slug)
-    const exists = await uc.existsByField(field, value, excludeId)
-    return NextResponse.json({ exists })
+    const url = new URL(req.url);
+    const field = url.searchParams.get("field") || "";
+    const value = url.searchParams.get("value");
+    const excludeId = url.searchParams.get("excludeId") || undefined;
+
+    if (!field) {
+      return NextResponse.json({ error: "missing_field" }, { status: 400 });
+    }
+
+    const uc = getUseCasesFor(slug);
+    const exists = await uc.existsByField(field, value, excludeId);
+    return NextResponse.json({ exists });
   } catch (e) {
-    console.error('check-unique error:', e)
-    return NextResponse.json({ error: 'Error verificando unicidad' }, { status: 500 })
+    console.error("[CHECK UNIQUE GET]", e);
+    return NextResponse.json({ error: "unique_failed" }, { status: 500 });
   }
 }
