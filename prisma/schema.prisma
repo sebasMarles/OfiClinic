@@ -79,7 +79,19 @@ model Prueba {
   updatedAt   DateTime @updatedAt
 }
 
+/// @crud
 model Prueba2 {
+  id          String   @id @default(cuid())
+  code        String?
+  description String?
+  active      Boolean? @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+
+
+model Prueba3 {
   id          String   @id @default(cuid())
   code        String?
   description String?
@@ -129,7 +141,7 @@ model ConfigCrud {
   enableMultiSelection Boolean? @default(true) @map("enable_multi_selection")
   enablePagination     Boolean? @default(true) @map("enable_pagination")
   pageSize             Int      @default(10) @map("page_size")
-  enableSearch         Boolean? @default(true)
+  enableSearch         Boolean? @default(true) @map("enable_search")
   searchPlaceHolder    String?  @default("Search...") @map("search_place_holder")
   enableFilters        Boolean? @default(true) @map("enable_filters")
   enableExport         Boolean? @default(true) @map("enable_export")
@@ -170,4 +182,11 @@ model ConfigCrudDetail {
 
   @@unique([configCrudId, key])
   @@index([configCrudId])
+}
+
+model configCrudDesign {
+  id        String   @id @default(cuid())
+  model     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

@@ -1,4 +1,3 @@
-// components/config-crud/CrudConfigGrid.tsx
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
@@ -11,16 +10,12 @@ import { toast } from "sonner";
 type ModelItem = { name: string };
 
 async function fetchModels(): Promise<{ data: ModelItem[] }> {
-  // 1) intenta /api/tables
-  let res = await fetch("/api/tables", { cache: "no-store" });
-  if (res.ok) return res.json();
-
-  // 2) si 404 u otro error, intenta alias /api/config-crud/tables
-  res = await fetch("/api/config-crud/tables", { cache: "no-store" });
-  if (res.ok) return res.json();
-
-  // 3) último recurso: vacío (evita throw para no pintar error rojo)
-  return { data: [] };
+  const res = await fetch("/api/tables", { cache: "no-store" });
+  if (!res.ok) {
+    // No hacemos fallback para no reactivar el endpoint legacy
+    return { data: [] };
+  }
+  return res.json();
 }
 
 export default function CrudConfigGrid() {
@@ -31,18 +26,11 @@ export default function CrudConfigGrid() {
 
   const runScript = async () => {
     try {
-      // intenta POST /api/tables/rebuild
-      let res = await fetch("/api/tables/rebuild", {
+      const res = await fetch("/api/tables/rebuild", {
         method: "POST",
         cache: "no-store",
       });
-      if (!res.ok) {
-        // fallback: GET /api/config-crud/tables?run=1
-        res = await fetch("/api/config-crud/tables?run=1", {
-          cache: "no-store",
-        });
-        if (!res.ok) throw new Error("script_failed");
-      }
+      if (!res.ok) throw new Error("script_failed");
       toast.success("Script ejecutado");
       refetch();
     } catch {

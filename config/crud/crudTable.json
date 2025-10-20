@@ -206,6 +206,26 @@
       ]
     },
     {
+      "name": "Prueba3",
+      "fields": [
+        {
+          "key": "code",
+          "type": "String",
+          "required": false
+        },
+        {
+          "key": "description",
+          "type": "String",
+          "required": false
+        },
+        {
+          "key": "active",
+          "type": "Boolean",
+          "required": false
+        }
+      ]
+    },
+    {
       "name": "ClinicalHistory",
       "fields": [
         {
